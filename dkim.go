@@ -2,6 +2,7 @@ package dkim
 
 import (
 	"bytes"
+	"io/ioutil"
 	"strings"
 	"time"
 )
@@ -88,6 +89,9 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	if len(p) > 2 {
 		return nil, ErrSignBadCanonicalization
 	}
+	if len(p) == 1 {
+		options.Canonicalization = options.Canonicalization + "/simple"
+	}
 	for _, c := range p {
 		if c != "simple" && c != "relaxed" {
 			return nil, ErrSignBadCanonicalization
@@ -104,7 +108,8 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	// normalize -> strtlower
 	hasFrom := false
 	for i, h := range options.Headers {
-		options.Headers[i] = strings.ToLower(h)
+		h = strings.ToLower(h)
+		options.Headers[i] = h
 		if h == "from" {
 			hasFrom = true
 		}
@@ -113,7 +118,39 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		return nil, ErrSignHeaderShouldContainsFrom
 	}
 
-	//
+	// Normalize
+	//normalizedHeaders, NormalizedBody, err := normalize(email, options)
+
+	canonicalize(email, options)
 
 	return nil, nil
+}
+
+func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body []byte, err error) {
+	var email []byte
+	email, err = ioutil.ReadAll(emailReader)
+	emailReader.Seek(0, 0)
+	if err != nil {
+		return
+	}
+
+	parts := bytes.SplitN(email, []byte{13, 10, 13, 10}, 2)
+
+	canonicalizations := strings.Split(options.Canonicalization, "/")
+	// canonicalyze body
+	if canonicalizations[1] == "simple" {
+		body = bytes.TrimRight(parts[1], "\r\n")
+		body = append(body, []byte{13, 10}...)
+	} else {
+		for _, line := range bytes.Split(parts[1], []byte{10}) {
+			println(line)
+		}
+	}
+
+	println(string(parts[0]))
+	println("\r\n")
+	println(string(parts[1]))
+	println(string(body))
+
+	return
 }
