@@ -27,16 +27,47 @@ func Test_NewSigOptions(t *testing.T) {
 	assert.Equal(t, "simple/simple", options.Canonicalization)
 }
 
-func Test_Sign(t *testing.T) {
+func Test_SignConfig(t *testing.T) {
 	emailReader := bytes.NewReader([]byte(email))
 	options := NewSigOptions()
 	_, err := Sign(emailReader, options)
 	assert.NotNil(t, err)
 	// && err No private key
-	assert.Error(t, ErrConfigNoPrivateKey)
+	assert.EqualError(t, err, ErrSignPrivateKeyRequired.Error())
 	options.PrivateKey = "toto"
 	_, err = Sign(emailReader, options)
-	// No
-	assert.Error(t, ErrConfigNoDomain)
+
+	// Domain
+	assert.EqualError(t, err, ErrSignDomainRequired.Error())
+	options.Domain = "toorop.fr"
+	_, err = Sign(emailReader, options)
+
+	// Selector
+	assert.Error(t, err, ErrSignSelectorRequired.Error())
+	options.Selector = "default"
+	_, err = Sign(emailReader, options)
+	assert.NoError(t, err)
+
+	// Canonicalization
+	options.Canonicalization = "simple/relaxed/simple"
+	_, err = Sign(emailReader, options)
+	assert.EqualError(t, err, ErrSignBadCanonicalization.Error())
+
+	options.Canonicalization = "simple/relax"
+	_, err = Sign(emailReader, options)
+	assert.EqualError(t, err, ErrSignBadCanonicalization.Error())
+
+	options.Canonicalization = "relaxed"
+	_, err = Sign(emailReader, options)
+	assert.NoError(t, err)
+
+	options.Canonicalization = "SiMple/relAxed"
+	_, err = Sign(emailReader, options)
+	assert.NoError(t, err)
+
+	// header
+	/*options.Headers = []string{"toto"}
+	_, err = Sign(emailReader, options)
+	assert.EqualError(t, err, ErrSignHeaderShouldContainsFrom.Error())*/
 
 }
