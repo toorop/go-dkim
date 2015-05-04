@@ -157,14 +157,33 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 	// canonicalyze body
 	if canonicalizations[1] == "simple" {
+		// simple
+		// The "simple" body canonicalization algorithm ignores all empty lines
+		// at the end of the message body.  An empty line is a line of zero
+		// length after removal of the line terminator.  If there is no body or
+		// no trailing CRLF on the message body, a CRLF is added.  It makes no
+		// other changes to the message body.  In more formal terms, the
+		// "simple" body canonicalization algorithm converts "*CRLF" at the end
+		// of the body to a single "CRLF".
+		// Note that a completely empty or missing body is canonicalized as a
+		// single "CRLF"; that is, the canonicalized length will be 2 octets.
 		body = bytes.TrimRight(parts[1], "\r\n")
 		body = append(body, []byte{13, 10}...)
 	} else {
+		// relaxed
+		// Ignore all whitespace at the end of lines.  Implementations
+		// MUST NOT remove the CRLF at the end of the line.
+		// Reduce all sequences of WSP within a line to a single SP
+		// character.
+		// Ignore all empty lines at the end of the message body.  "Empty
+		// line" is defined in Section 3.4.3.  If the body is non-empty but
+		// does not end with a CRLF, a CRLF is added.  (For email, this is
+		// only possible when using extensions to SMTP or non-SMTP transport
+		// mechanisms.)
 		parts[1] = rxReduceWS.ReplaceAll(parts[1], []byte(" "))
 		for _, line := range bytes.SplitAfter(parts[1], []byte{10}) {
 			line = bytes.TrimRight(line, " \r\n")
-			// Ignore all whitespace at the end of lines.  Implementations
-			// MUST NOT remove the CRLF at the end of the line.
+
 			if len(line) != 0 {
 				body = append(body, line...)
 				body = append(body, []byte{13, 10}...)
