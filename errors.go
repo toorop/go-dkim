@@ -24,5 +24,8 @@ var (
 	ErrSignBadAlgo = errors.New("bad algorithm. Only rsa-sha1 or rsa-sha256 are permitted")
 
 	// ErrBadMailFormat
-	ErrBadMailFormat = errors.New("bad mail formart")
+	ErrBadMailFormat = errors.New("bad mail format")
+
+	// ErrBadMailFormatHeaders
+	ErrBadMailFormatHeaders = errors.New("bad mail format found in headers")
 )

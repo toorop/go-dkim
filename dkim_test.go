@@ -33,6 +33,9 @@ kS5vLkzRI84eiJrm3+IieUqIIicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv
 
 var email = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -0000" + CRLF +
 	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
+	"Received: from mail483.ha.ovh.net (b6.ovh.net [213.186.33.56])" + CRLF +
+	" by mo51.mail-out.ovh.net (Postfix) with SMTP id A6E22FF8934" + CRLF +
+	" for <toorop@toorop.fr>; Mon,  4 May 2015 14:00:47 +0200 (CEST)" + CRLF +
 	"MIME-Version: 1.0" + CRLF +
 	"Date: Fri, 1 May 2015 11:48:37 +0200" + CRLF +
 	"Message-ID: <CADu37kTXBeNkJdXc4bSF8DbJnXmNjkLbnswK6GzG_2yn7U7P6w@tmail.io>" + CRLF +
@@ -45,6 +48,22 @@ var email = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -
 	"line with           space         " + CRLF +
 	"-- " + CRLF +
 	"Toorop  " + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
+
+var headerSimple = "From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
+	"Date: Fri, 1 May 2015 11:48:37 +0200" + CRLF +
+	"MIME-Version: 1.0" + CRLF +
+	"Received: from mail483.ha.ovh.net (b6.ovh.net [213.186.33.56])" + CRLF +
+	" by mo51.mail-out.ovh.net (Postfix) with SMTP id A6E22FF8934" + CRLF +
+	" for <toorop@toorop.fr>; Mon,  4 May 2015 14:00:47 +0200 (CEST)" + CRLF +
+	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
+	"In-Reply-To:" + CRLF
+
+var headerRelaxed = "from:=?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
+	"date:Fri, 1 May 2015 11:48:37 +0200" + CRLF +
+	"mime-version:1.0" + CRLF +
+	"received:from mail483.ha.ovh.net (b6.ovh.net [213.186.33.56]) by mo51.mail-out.ovh.net (Postfix) with SMTP id A6E22FF8934 for <toorop@toorop.fr>; Mon, 4 May 2015 14:00:47 +0200 (CEST)" + CRLF +
+	"received:(qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
+	"in-reply-to:" + CRLF
 
 var bodySimple = "Hello world" + CRLF +
 	"line with trailing space         " + CRLF +
@@ -112,6 +131,26 @@ func Test_SignConfig(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func Test_canonicalize(t *testing.T) {
+	emailReader := bytes.NewReader([]byte(email))
+	options := NewSigOptions()
+	options.Headers = []string{"from", "date", "mime-version", "received", "received", "In-Reply-To"}
+	// simple/simple
+	options.Canonicalization = "simple/simple"
+	header, body, err := canonicalize(emailReader, options)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(headerSimple), header)
+	assert.Equal(t, []byte(bodySimple), body)
+
+	// relaxed/relaxed
+	options.Canonicalization = "relaxed/relaxed"
+	header, body, err = canonicalize(emailReader, options)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(headerRelaxed), header)
+	assert.Equal(t, []byte(bodyRelaxed), body)
+
+}
+
 func Test_Sign(t *testing.T) {
 	emailReader := bytes.NewReader([]byte(email))
 	options := NewSigOptions()
@@ -121,21 +160,4 @@ func Test_Sign(t *testing.T) {
 	options.Selector = selector
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
-}
-
-func Test_canonicalize(t *testing.T) {
-	emailReader := bytes.NewReader([]byte(email))
-	options := NewSigOptions()
-	// simple/simple
-	options.Canonicalization = "simple/simple"
-	_, body, err := canonicalize(emailReader, options)
-	assert.NoError(t, err)
-	assert.Equal(t, []byte(bodySimple), body)
-
-	// relaxed/relaxed
-	options.Canonicalization = "relaxed/relaxed"
-	_, body, err = canonicalize(emailReader, options)
-	assert.NoError(t, err)
-	assert.Equal(t, []byte(bodyRelaxed), body)
-
 }

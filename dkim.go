@@ -2,7 +2,7 @@ package dkim
 
 import (
 	"bytes"
-	//"fmt"
+	"container/list"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -155,6 +155,98 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 	}
 
 	canonicalizations := strings.Split(options.Canonicalization, "/")
+
+	// canonicalyze header
+	//var headersMap [][]byte
+	//headersMap := [][]byte{}
+	headersList := list.New()
+	currentHeader := []byte{}
+	for _, line := range bytes.SplitAfter(parts[0], []byte{10}) {
+		if line[0] == 32 || line[0] == 9 {
+			if len(currentHeader) == 0 {
+				return headers, body, ErrBadMailFormatHeaders
+			}
+			currentHeader = append(currentHeader, line...)
+		} else {
+			// New header, save current if exists
+			if len(currentHeader) != 0 {
+				//headersMap = append(headersMap, currentHeader)
+				headersList.PushBack(string(currentHeader))
+				currentHeader = []byte{}
+
+			}
+			currentHeader = append(currentHeader, line...)
+		}
+	}
+
+	// pour chaque header a conserver on traverse tous les headers dispo
+	// If multi instance of a field we must keep it from the bottom to the top
+	var match *list.Element
+	headersToKeepList := list.New()
+
+	for _, headerToKeep := range options.Headers {
+		match = nil
+		headerToKeepToLower := strings.ToLower(headerToKeep)
+		for e := headersList.Front(); e != nil; e = e.Next() {
+			t := strings.Split(e.Value.(string), ":")
+			if strings.ToLower(t[0]) == headerToKeepToLower {
+				match = e
+			}
+		}
+		if match != nil {
+			headersToKeepList.PushBack(match.Value.(string))
+			headersList.Remove(match)
+		} else {
+			headersToKeepList.PushBack(headerToKeep + ":\r\n")
+		}
+	}
+
+	if canonicalizations[0] == "simple" {
+		// The "simple" header canonicalization algorithm does not change header
+		// fields in any way.  Header fields MUST be presented to the signing or
+		// verification algorithm exactly as they are in the message being
+		// signed or verified.  In particular, header field names MUST NOT be
+		// case folded and whitespace MUST NOT be changed.
+		for e := headersToKeepList.Front(); e != nil; e = e.Next() {
+			headers = append(headers, []byte(e.Value.(string))...)
+		}
+	} else {
+		// The "relaxed" header canonicalization algorithm MUST apply the
+		// following steps in order:
+
+		// Convert all header field names (not the header field values) to
+		// lowercase.  For example, convert "SUBJect: AbC" to "subject: AbC".
+
+		// Unfold all header field continuation lines as described in
+		// [RFC5322]; in particular, lines with terminators embedded in
+		// continued header field values (that is, CRLF sequences followed by
+		// WSP) MUST be interpreted without the CRLF.  Implementations MUST
+		// NOT remove the CRLF at the end of the header field value.
+
+		// Convert all sequences of one or more WSP characters to a single SP
+		// character.  WSP characters here include those before and after a
+		// line folding boundary.
+
+		// Delete all WSP characters at the end of each unfolded header field
+		// value.
+
+		// Delete any WSP characters remaining before and after the colon
+		// separating the header field name from the header field value.  The
+		// colon separator MUST be retained.
+		for e := headersToKeepList.Front(); e != nil; e = e.Next() {
+			kv := strings.SplitN(e.Value.(string), ":", 2)
+			if len(kv) != 2 {
+				return []byte{}, []byte{}, ErrBadMailFormatHeaders
+			}
+			k := strings.ToLower(kv[0])
+			k = strings.TrimSpace(k)
+			v := strings.Replace(kv[1], "\n", "", -1)
+			v = strings.Replace(v, "\r", "", -1)
+			v = rxReduceWS.ReplaceAllString(v, " ")
+			v = strings.TrimSpace(v)
+			headers = append(headers, []byte(k+":"+v+CRLF)...)
+		}
+	}
 	// canonicalyze body
 	if canonicalizations[1] == "simple" {
 		// simple
