@@ -31,17 +31,32 @@ kS5vLkzRI84eiJrm3+IieUqIIicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv
 	selector = "test"
 )
 
-var email = `Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -0000
-Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000
-MIME-Version: 1.0
-Date: Fri, 1 May 2015 11:48:37 +0200
-Message-ID: <CADu37kTXBeNkJdXc4bSF8DbJnXmNjkLbnswK6GzG_2yn7U7P6w@tmail.io>
-Subject: Test DKIM
-From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>
-To: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@toorop.fr>
-Content-Type: text/plain; charset=UTF-8` + "\r\n\r\n" + `Hello world
--- 
-Toorop` + "\r\n\r\n\r\n\r\n\r\n\r\n\r\n"
+var email = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -0000" + CRLF +
+	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
+	"MIME-Version: 1.0" + CRLF +
+	"Date: Fri, 1 May 2015 11:48:37 +0200" + CRLF +
+	"Message-ID: <CADu37kTXBeNkJdXc4bSF8DbJnXmNjkLbnswK6GzG_2yn7U7P6w@tmail.io>" + CRLF +
+	"Subject: Test DKIM" + CRLF +
+	"From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
+	"To: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@toorop.fr>" + CRLF +
+	"Content-Type: text/plain; charset=UTF-8" + CRLF + CRLF +
+	"Hello world" + CRLF +
+	"line with trailing space         " + CRLF +
+	"line with           space         " + CRLF +
+	"-- " + CRLF +
+	"Toorop  " + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
+
+var bodySimple = "Hello world" + CRLF +
+	"line with trailing space         " + CRLF +
+	"line with           space         " + CRLF +
+	"-- " + CRLF +
+	"Toorop  " + CRLF
+
+var bodyRelaxed = "Hello world" + CRLF +
+	"line with trailing space" + CRLF +
+	"line with space" + CRLF +
+	"--" + CRLF +
+	"Toorop" + CRLF
 
 func Test_NewSigOptions(t *testing.T) {
 	options := NewSigOptions()
@@ -106,4 +121,21 @@ func Test_Sign(t *testing.T) {
 	options.Selector = selector
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
+}
+
+func Test_canonicalize(t *testing.T) {
+	emailReader := bytes.NewReader([]byte(email))
+	options := NewSigOptions()
+	// simple/simple
+	options.Canonicalization = "simple/simple"
+	_, body, err := canonicalize(emailReader, options)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(bodySimple), body)
+
+	// relaxed/relaxed
+	options.Canonicalization = "relaxed/relaxed"
+	_, body, err = canonicalize(emailReader, options)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(bodyRelaxed), body)
+
 }

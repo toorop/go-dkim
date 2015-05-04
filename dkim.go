@@ -2,9 +2,15 @@ package dkim
 
 import (
 	"bytes"
+	//"fmt"
 	"io/ioutil"
+	"regexp"
 	"strings"
 	"time"
+)
+
+const (
+	CRLF = "\r\n"
 )
 
 // sigOptions represents signing options
@@ -128,6 +134,9 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 
 func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body []byte, err error) {
 	var email []byte
+	body = []byte{}
+	rxReduceWS := regexp.MustCompile(`[ \t]+`)
+
 	email, err = ioutil.ReadAll(emailReader)
 	emailReader.Seek(0, 0)
 	if err != nil {
@@ -136,21 +145,37 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 
 	parts := bytes.SplitN(email, []byte{13, 10, 13, 10}, 2)
 
+	if len(parts) != 2 {
+		return headers, body, ErrBadMailFormat
+	}
+
+	// Empty body
+	if len(parts[1]) == 0 {
+		parts[1] = []byte{13, 10}
+	}
+
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 	// canonicalyze body
 	if canonicalizations[1] == "simple" {
 		body = bytes.TrimRight(parts[1], "\r\n")
 		body = append(body, []byte{13, 10}...)
 	} else {
-		for _, line := range bytes.Split(parts[1], []byte{10}) {
-			println(line)
+		parts[1] = rxReduceWS.ReplaceAll(parts[1], []byte(" "))
+		for _, line := range bytes.SplitAfter(parts[1], []byte{10}) {
+			line = bytes.TrimRight(line, " \r\n")
+			// Ignore all whitespace at the end of lines.  Implementations
+			// MUST NOT remove the CRLF at the end of the line.
+			if len(line) != 0 {
+				body = append(body, line...)
+				body = append(body, []byte{13, 10}...)
+			}
 		}
 	}
+	return
 
-	println(string(parts[0]))
+	/*println(string(parts[0]))
 	println("\r\n")
 	println(string(parts[1]))
-	println(string(body))
-
+	println(string(body))*/
 	return
 }

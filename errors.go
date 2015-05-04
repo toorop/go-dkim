@@ -21,5 +21,8 @@ var (
 	ErrSignBadCanonicalization = errors.New("bad Canonicalization parameter")
 
 	// Bad algorithm
-	ErrSignBadAlgo = errors.New("bar algorithm. Only rsa-sha1 or rsa-sha256 are permitted")
+	ErrSignBadAlgo = errors.New("bad algorithm. Only rsa-sha1 or rsa-sha256 are permitted")
+
+	// ErrBadMailFormat
+	ErrBadMailFormat = errors.New("bad mail formart")
 )
