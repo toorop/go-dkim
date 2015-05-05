@@ -2,12 +2,15 @@ package dkim
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"testing"
 )
 
 const (
-	privKey = `MIICXQIBAAKBgQDNUXO+Qsl1tw+GjrqFajz0ERSEUs1FHSL/+udZRWn1Atw8gz0+
+	privKey = `-----BEGIN RSA PRIVATE KEY-----
+	MIICXQIBAAKBgQDNUXO+Qsl1tw+GjrqFajz0ERSEUs1FHSL/+udZRWn1Atw8gz0+
 tcGqhWChBDeU9gY5sKLEAZnX3FjC/T/IbqeiSM68kS5vLkzRI84eiJrm3+IieUqI
 IicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv+VPgO1JWdooURcSC6QIDAQAB
 AoGAM9exRgVPIS4L+Ynohu+AXJBDgfX2ZtEomUIdUGk6i+cg/RaWTFNQh2IOOBn8
@@ -19,7 +22,8 @@ uGhq0DPojmhsmUC8jUeLe79CllZNP3LU1wJBAIZcoCnI7g5Bcdr4nyxfJ4pkw4cQ
 S4FT0XAZPR/YZrADo8/SWCWPdFTGSuaf17nL6vLD1zljK/skY5LwshrvUCMCQQDM
 MY7ehj6DVFHYlt2LFSyhInCZscTencgK24KfGF5t1JZlwt34YaMqjAMACmi/55Fc
 e7DIxW5nI/nDZrOY+EAjAkA3BHUx3PeXkXJnXjlh7nGZmk/v8tB5fiofAwfXNfL7
-bz0ZrT2Caz995Dpjommh5aMpCJvUGsrYCG6/Pbha9NXl`
+bz0ZrT2Caz995Dpjommh5aMpCJvUGsrYCG6/Pbha9NXl
+-----END RSA PRIVATE KEY-----`
 
 	pubKey = `MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNUXO+Qsl1tw+GjrqFajz0ERSE
 Us1FHSL/+udZRWn1Atw8gz0+tcGqhWChBDeU9gY5sKLEAZnX3FjC/T/IbqeiSM68
@@ -90,45 +94,55 @@ func Test_SignConfig(t *testing.T) {
 	assert.NotNil(t, err)
 	// && err No private key
 	assert.EqualError(t, err, ErrSignPrivateKeyRequired.Error())
-	options.PrivateKey = "toto"
+	options.PrivateKey = privKey
 	_, err = Sign(emailReader, options)
+	emailReader.Seek(0, 0)
 
 	// Domain
 	assert.EqualError(t, err, ErrSignDomainRequired.Error())
 	options.Domain = "toorop.fr"
 	_, err = Sign(emailReader, options)
+	emailReader.Seek(0, 0)
 
 	// Selector
 	assert.Error(t, err, ErrSignSelectorRequired.Error())
 	options.Selector = "default"
 	_, err = Sign(emailReader, options)
 	assert.NoError(t, err)
+	emailReader.Seek(0, 0)
 
 	// Canonicalization
 	options.Canonicalization = "simple/relaxed/simple"
 	_, err = Sign(emailReader, options)
 	assert.EqualError(t, err, ErrSignBadCanonicalization.Error())
+	emailReader.Seek(0, 0)
 
 	options.Canonicalization = "simple/relax"
 	_, err = Sign(emailReader, options)
+	emailReader.Seek(0, 0)
 	assert.EqualError(t, err, ErrSignBadCanonicalization.Error())
+	emailReader.Seek(0, 0)
 
 	options.Canonicalization = "relaxed"
 	_, err = Sign(emailReader, options)
 	assert.NoError(t, err)
+	emailReader.Seek(0, 0)
 
 	options.Canonicalization = "SiMple/relAxed"
 	_, err = Sign(emailReader, options)
 	assert.NoError(t, err)
+	emailReader.Seek(0, 0)
 
 	// header
 	options.Headers = []string{"toto"}
 	_, err = Sign(emailReader, options)
 	assert.EqualError(t, err, ErrSignHeaderShouldContainsFrom.Error())
+	emailReader.Seek(0, 0)
 
 	options.Headers = []string{"To", "From"}
 	_, err = Sign(emailReader, options)
 	assert.NoError(t, err)
+	emailReader.Seek(0, 0)
 }
 
 func Test_canonicalize(t *testing.T) {
@@ -155,9 +169,14 @@ func Test_Sign(t *testing.T) {
 	emailReader := bytes.NewReader([]byte(email))
 	options := NewSigOptions()
 	options.PrivateKey = privKey
-	options.Canonicalization = "simple/relaxed"
+	options.Canonicalization = "relaxed/relaxed"
 	options.Domain = domain
 	options.Selector = selector
+	options.AddSignatureTimestamp = true
+	options.SignatureExpireIn = 3600
+	options.Headers = []string{"from", "date", "mime-version", "received", "received", "In-Reply-To"}
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
+	raw, _ := ioutil.ReadAll(emailReader)
+	fmt.Println(string(raw))
 }

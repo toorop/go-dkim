@@ -1,6 +1,8 @@
 package dkim
 
 import (
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -179,4 +181,100 @@ type DkimHeader struct {
 	// use.
 	// tag z
 	CopiedHeaderFileds []string
+}
+
+// NewDkimHeaderBySigOptions return a new DkimHeader initioalized with sigOptions value
+func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
+	h := new(DkimHeader)
+	h.Version = "1"
+	h.Algorithm = options.Algo
+	h.MessageCanonicalization = options.Canonicalization
+	h.Domain = options.Domain
+	h.Headers = options.Headers
+	h.Auid = options.Auid
+	h.BodyLength = options.BodyLength
+	h.QueryMethods = options.QueryMethods
+	h.Selector = options.Selector
+	if options.AddSignatureTimestamp {
+		h.SignatureTimestamp = time.Now()
+	}
+	if options.SignatureExpireIn.Seconds() > 0 {
+		h.SignatureExpiration = time.Now().Add(options.SignatureExpireIn)
+	}
+	h.CopiedHeaderFileds = options.CopiedHeaderFileds
+	return h
+}
+
+// GetHeaderBase return base header for signers
+// Todo: some refactoring...
+func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
+	h := "DKIM-Signature: v=" + d.Version + "; a=" + d.Algorithm + "; q=" + strings.Join(d.QueryMethods, ":") + "; c=" + d.MessageCanonicalization + ";" + CRLF + TAB
+	subh := "s=" + d.Selector + ";"
+	if len(subh)+len(d.Domain)+4 > MaxHeaderLineLength {
+		h += subh + FWS
+		subh = ""
+	}
+	subh += " d=" + d.Domain + ";"
+
+	// signature timestamp
+	if !d.SignatureTimestamp.IsZero() {
+		ts := d.SignatureTimestamp.Unix()
+		if len(subh)+14 > MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+		}
+		subh += " t=" + fmt.Sprintf("%d", ts) + ";"
+	}
+	if len(subh)+len(d.Domain)+4 > MaxHeaderLineLength {
+		h += subh + FWS
+		subh = ""
+	}
+
+	// Expiration
+	if !d.SignatureExpiration.IsZero() {
+		ts := d.SignatureExpiration.Unix()
+		if len(subh)+14 > MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+		}
+		subh += " x=" + fmt.Sprintf("%d", ts) + ";"
+
+	}
+
+	// Headers
+	if len(subh)+len(d.Headers)+4 > MaxHeaderLineLength {
+		h += subh + FWS
+		subh = ""
+	}
+	subh += " h="
+	for _, header := range d.Headers {
+		if len(subh)+len(header)+1 > MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+		}
+		subh += header + ":"
+	}
+	subh = subh[:len(subh)-1] + ";"
+
+	// BodyHash
+	if len(subh)+5+len(bodyHash) > MaxHeaderLineLength {
+		h += subh + FWS
+		subh = ""
+	} else {
+		subh += " "
+	}
+	subh += "bh="
+	l := len(subh)
+	for _, c := range bodyHash {
+		subh += string(c)
+		l++
+		if l >= MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+			l = 0
+		}
+	}
+	h += subh
+
+	return h
 }

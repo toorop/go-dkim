@@ -3,6 +3,15 @@ package dkim
 import (
 	"bytes"
 	"container/list"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
+	"hash"
 	"io/ioutil"
 	"regexp"
 	"strings"
@@ -10,7 +19,10 @@ import (
 )
 
 const (
-	CRLF = "\r\n"
+	CRLF                = "\r\n"
+	TAB                 = "\t"
+	FWS                 = CRLF + TAB
+	MaxHeaderLineLength = 70
 )
 
 // sigOptions represents signing options
@@ -54,6 +66,9 @@ type sigOptions struct {
 
 	// Time validity of the signature (0=never)
 	SignatureExpireIn time.Duration
+
+	// CopiedHeaderFileds
+	CopiedHeaderFileds []string
 }
 
 // NewSigOption returns new sigoption with some defaults value
@@ -72,12 +87,20 @@ func NewSigOptions() sigOptions {
 
 // Sign signs an email
 func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
+	var privateKey *rsa.PrivateKey
 	// check && sanitize config
 
 	// PrivateKey (required & TODO: valid)
 	if options.PrivateKey == "" {
 		return nil, ErrSignPrivateKeyRequired
 	}
+
+	d, _ := pem.Decode([]byte(options.PrivateKey))
+	key, err := x509.ParsePKCS1PrivateKey(d.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	privateKey = key
 
 	// Domain required
 	if options.Domain == "" {
@@ -125,13 +148,74 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	}
 
 	// Normalize
-	//normalizedHeaders, NormalizedBody, err := normalize(email, options)
+	headers, body, err := canonicalize(email, options)
+	if err != nil {
+		return nil, err
+	}
 
-	canonicalize(email, options)
+	// hash body
+	var bodyHash string
+	var h1, h2 hash.Hash
+	var h3 crypto.Hash
+	signHash := strings.Split(options.Algo, "-")
+	if signHash[1] == "sha1" {
+		h1 = sha1.New()
+		h2 = sha1.New()
+		h3 = crypto.SHA1
+	} else {
+		h1 = sha256.New()
+		h2 = sha256.New()
+		h3 = crypto.SHA256
+	}
+	bodyHash = base64.StdEncoding.EncodeToString(h1.Sum(body))
 
-	return nil, nil
+	// Get dkim header base
+	dkimHeader := NewDkimHeaderBySigOptions(options)
+	dHeader := dkimHeader.GetHeaderBase(bodyHash)
+
+	canonicalizations := strings.Split(options.Canonicalization, "/")
+	dHeaderCanonicalized, err := canonicalizeHeader(dHeader, canonicalizations[0])
+	if err != nil {
+		return nil, err
+	}
+	headers = append(headers, []byte(dHeaderCanonicalized)...)
+
+	// sign
+	h2.Write(headers)
+	sig, err := rsa.SignPKCS1v15(rand.Reader, privateKey, h3, h2.Sum(nil))
+	if err != nil {
+		return nil, err
+	}
+	sig64 := base64.StdEncoding.EncodeToString(sig)
+
+	// add to DKIM-Header
+
+	dHeader += ";" + FWS
+	subh := "b="
+	l := len(subh)
+	for _, c := range sig64 {
+		subh += string(c)
+		l++
+		if l >= MaxHeaderLineLength {
+			dHeader += subh + FWS
+			subh = ""
+			l = 0
+		}
+	}
+	dHeader += subh + CRLF
+
+	// Out
+	rawmail := []byte(dHeader)
+	t, err := ioutil.ReadAll(email)
+	if err != nil {
+		return nil, err
+	}
+
+	rawmail = append(rawmail, t...)
+	return bytes.NewReader(rawmail), nil
 }
 
+// canonicalize returns canonicalized version of header and body
 func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body []byte, err error) {
 	var email []byte
 	body = []byte{}
@@ -157,8 +241,6 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 
 	// canonicalyze header
-	//var headersMap [][]byte
-	//headersMap := [][]byte{}
 	headersList := list.New()
 	currentHeader := []byte{}
 	for _, line := range bytes.SplitAfter(parts[0], []byte{10}) {
@@ -170,7 +252,6 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 		} else {
 			// New header, save current if exists
 			if len(currentHeader) != 0 {
-				//headersMap = append(headersMap, currentHeader)
 				headersList.PushBack(string(currentHeader))
 				currentHeader = []byte{}
 
@@ -201,51 +282,13 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 		}
 	}
 
-	if canonicalizations[0] == "simple" {
-		// The "simple" header canonicalization algorithm does not change header
-		// fields in any way.  Header fields MUST be presented to the signing or
-		// verification algorithm exactly as they are in the message being
-		// signed or verified.  In particular, header field names MUST NOT be
-		// case folded and whitespace MUST NOT be changed.
-		for e := headersToKeepList.Front(); e != nil; e = e.Next() {
-			headers = append(headers, []byte(e.Value.(string))...)
+	//if canonicalizations[0] == "simple" {
+	for e := headersToKeepList.Front(); e != nil; e = e.Next() {
+		cHeader, err := canonicalizeHeader(e.Value.(string), canonicalizations[0])
+		if err != nil {
+			return headers, body, err
 		}
-	} else {
-		// The "relaxed" header canonicalization algorithm MUST apply the
-		// following steps in order:
-
-		// Convert all header field names (not the header field values) to
-		// lowercase.  For example, convert "SUBJect: AbC" to "subject: AbC".
-
-		// Unfold all header field continuation lines as described in
-		// [RFC5322]; in particular, lines with terminators embedded in
-		// continued header field values (that is, CRLF sequences followed by
-		// WSP) MUST be interpreted without the CRLF.  Implementations MUST
-		// NOT remove the CRLF at the end of the header field value.
-
-		// Convert all sequences of one or more WSP characters to a single SP
-		// character.  WSP characters here include those before and after a
-		// line folding boundary.
-
-		// Delete all WSP characters at the end of each unfolded header field
-		// value.
-
-		// Delete any WSP characters remaining before and after the colon
-		// separating the header field name from the header field value.  The
-		// colon separator MUST be retained.
-		for e := headersToKeepList.Front(); e != nil; e = e.Next() {
-			kv := strings.SplitN(e.Value.(string), ":", 2)
-			if len(kv) != 2 {
-				return []byte{}, []byte{}, ErrBadMailFormatHeaders
-			}
-			k := strings.ToLower(kv[0])
-			k = strings.TrimSpace(k)
-			v := strings.Replace(kv[1], "\n", "", -1)
-			v = strings.Replace(v, "\r", "", -1)
-			v = rxReduceWS.ReplaceAllString(v, " ")
-			v = strings.TrimSpace(v)
-			headers = append(headers, []byte(k+":"+v+CRLF)...)
-		}
+		headers = append(headers, []byte(cHeader)...)
 	}
 	// canonicalyze body
 	if canonicalizations[1] == "simple" {
@@ -289,4 +332,52 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 	println(string(parts[1]))
 	println(string(body))*/
 	return
+}
+
+// canonicalizeHeader returns canonicalized version of header
+func canonicalizeHeader(header string, algo string) (string, error) {
+	rxReduceWS := regexp.MustCompile(`[ \t]+`)
+	if algo == "simple" {
+		// The "simple" header canonicalization algorithm does not change header
+		// fields in any way.  Header fields MUST be presented to the signing or
+		// verification algorithm exactly as they are in the message being
+		// signed or verified.  In particular, header field names MUST NOT be
+		// case folded and whitespace MUST NOT be changed.
+		return header, nil
+	} else if algo == "relaxed" {
+		// The "relaxed" header canonicalization algorithm MUST apply the
+		// following steps in order:
+
+		// Convert all header field names (not the header field values) to
+		// lowercase.  For example, convert "SUBJect: AbC" to "subject: AbC".
+
+		// Unfold all header field continuation lines as described in
+		// [RFC5322]; in particular, lines with terminators embedded in
+		// continued header field values (that is, CRLF sequences followed by
+		// WSP) MUST be interpreted without the CRLF.  Implementations MUST
+		// NOT remove the CRLF at the end of the header field value.
+
+		// Convert all sequences of one or more WSP characters to a single SP
+		// character.  WSP characters here include those before and after a
+		// line folding boundary.
+
+		// Delete all WSP characters at the end of each unfolded header field
+		// value.
+
+		// Delete any WSP characters remaining before and after the colon
+		// separating the header field name from the header field value.  The
+		// colon separator MUST be retained.
+		kv := strings.SplitN(header, ":", 2)
+		if len(kv) != 2 {
+			return header, ErrBadMailFormatHeaders
+		}
+		k := strings.ToLower(kv[0])
+		k = strings.TrimSpace(k)
+		v := strings.Replace(kv[1], "\n", "", -1)
+		v = strings.Replace(v, "\r", "", -1)
+		v = rxReduceWS.ReplaceAllString(v, " ")
+		v = strings.TrimSpace(v)
+		return k + ":" + v + CRLF, nil
+	}
+	return header, ErrSignBadCanonicalization
 }
