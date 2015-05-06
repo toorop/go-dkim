@@ -16,7 +16,7 @@ import (
 	"io/ioutil"
 	"regexp"
 	"strings"
-	"time"
+	//"time"
 )
 
 const (
@@ -66,7 +66,7 @@ type sigOptions struct {
 	AddSignatureTimestamp bool
 
 	// Time validity of the signature (0=never)
-	SignatureExpireIn time.Duration
+	SignatureExpireIn uint64
 
 	// CopiedHeaderFileds
 	CopiedHeaderFileds []string
@@ -82,7 +82,7 @@ func NewSigOptions() sigOptions {
 		BodyLength:            0,
 		QueryMethods:          []string{"dns/txt"},
 		AddSignatureTimestamp: false,
-		SignatureExpireIn:     0 * time.Second,
+		SignatureExpireIn:     0,
 	}
 }
 

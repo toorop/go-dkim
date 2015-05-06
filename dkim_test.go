@@ -172,8 +172,8 @@ func Test_Sign(t *testing.T) {
 	options.Canonicalization = "relaxed/relaxed"
 	options.Domain = domain
 	options.Selector = selector
-	//options.AddSignatureTimestamp = true
-	//options.SignatureExpireIn = 3600
+	options.AddSignatureTimestamp = true
+	options.SignatureExpireIn = 3600
 	options.Headers = []string{"from"}
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
