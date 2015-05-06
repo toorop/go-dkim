@@ -206,7 +206,7 @@ func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
 }
 
 // GetHeaderBase return base header for signers
-// Todo: some refactoring...
+// Todo: some refactoring needed...
 func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 	h := "DKIM-Signature: v=" + d.Version + "; a=" + d.Algorithm + "; q=" + strings.Join(d.QueryMethods, ":") + "; c=" + d.MessageCanonicalization + ";" + CRLF + TAB
 	subh := "s=" + d.Selector + ";"
@@ -298,5 +298,3 @@ func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 	h += subh + ";" + FWS + "b="
 	return h
 }
-
-//'test._domainkey.tmail.io:v=DKIM1;k=rsa;s=email;h=sha256;t=y;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNUXO+Qsl1tw+GjrqFajz0ERSEUs1FHSL/+udZRWn1Atw8gz0+tcGqhWChBDeU9gY5sKLEAZnX3FjC/T/IbqeiSM68kS5vLkzRI84eiJrm3+IieUqIIicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv+VPgO1JWdooURcSC6QIDAQAB':300::

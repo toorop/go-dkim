@@ -11,12 +11,10 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	//"fmt"
 	"hash"
 	"io/ioutil"
 	"regexp"
 	"strings"
-	//"time"
 )
 
 const (
@@ -89,7 +87,6 @@ func NewSigOptions() sigOptions {
 // Sign signs an email
 func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	var privateKey *rsa.PrivateKey
-	// check && sanitize config
 
 	// PrivateKey (required & TODO: valid)
 	if options.PrivateKey == "" {
@@ -99,7 +96,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	d, _ := pem.Decode([]byte(options.PrivateKey))
 	key, err := x509.ParsePKCS1PrivateKey(d.Bytes)
 	if err != nil {
-		return nil, err
+		return nil, ErrCandNotParsePrivateKey
 	}
 	privateKey = key
 
@@ -237,8 +234,7 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 		return
 	}
 
-	//fmt.Println(email)
-	// todo \n -> \r\n
+	// TODO: \n -> \r\n
 	parts := bytes.SplitN(email, []byte{13, 10, 13, 10}, 2)
 
 	if len(parts) != 2 {

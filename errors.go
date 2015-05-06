@@ -20,6 +20,9 @@ var (
 	// If bad Canonicalization parameter
 	ErrSignBadCanonicalization = errors.New("bad Canonicalization parameter")
 
+	// when unable to parse private key
+	ErrCandNotParsePrivateKey = errors.New("can not parse private key, check format (pem) and validity")
+
 	// Bad algorithm
 	ErrSignBadAlgo = errors.New("bad algorithm. Only rsa-sha1 or rsa-sha256 are permitted")
 
