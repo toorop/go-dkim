@@ -199,7 +199,6 @@ func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
 		h.SignatureTimestamp = time.Now()
 	}
 	if options.SignatureExpireIn > 0 {
-		fmt.Println(options.SignatureExpireIn)
 		h.SignatureExpiration = time.Now().Add(time.Duration(options.SignatureExpireIn) * time.Second)
 	}
 	h.CopiedHeaderFileds = options.CopiedHeaderFileds
@@ -253,6 +252,16 @@ func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 		subh += " x=" + fmt.Sprintf("%d", ts) + ";"
 	}
 
+	// body length
+	if d.BodyLength != 0 {
+		bodyLengthStr := fmt.Sprintf("%d", d.BodyLength)
+		if len(subh)+len(bodyLengthStr)+4 > MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+		}
+		subh += " l=" + bodyLengthStr + ";"
+	}
+
 	// Headers
 	if len(subh)+len(d.Headers)+4 > MaxHeaderLineLength {
 		h += subh + FWS
@@ -287,7 +296,6 @@ func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 		}
 	}
 	h += subh + ";" + FWS + "b="
-
 	return h
 }
 

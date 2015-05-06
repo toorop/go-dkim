@@ -174,6 +174,7 @@ func Test_Sign(t *testing.T) {
 	options.Selector = selector
 	options.AddSignatureTimestamp = true
 	options.SignatureExpireIn = 3600
+	options.BodyLength = 5
 	options.Headers = []string{"from"}
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)

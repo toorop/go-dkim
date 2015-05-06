@@ -28,4 +28,7 @@ var (
 
 	// ErrBadMailFormatHeaders
 	ErrBadMailFormatHeaders = errors.New("bad mail format found in headers")
+
+	// ErrBadDKimTagLBodyTooShort
+	ErrBadDKimTagLBodyTooShort = errors.New("bad tag l or bodyLength option. Body length < l value")
 )

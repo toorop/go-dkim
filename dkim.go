@@ -168,6 +168,15 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		h2 = sha256.New()
 		h3 = crypto.SHA256
 	}
+
+	// if l tag (body length)
+	if options.BodyLength != 0 {
+		if uint(len(body)) < options.BodyLength {
+			return nil, ErrBadDKimTagLBodyTooShort
+		}
+		body = body[0:options.BodyLength]
+	}
+
 	h1.Write(body)
 	bodyHash = base64.StdEncoding.EncodeToString(h1.Sum(nil))
 
