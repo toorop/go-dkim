@@ -47,11 +47,11 @@ var email = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -
 	"From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
 	"To: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@toorop.fr>" + CRLF +
 	"Content-Type: text/plain; charset=UTF-8" + CRLF + CRLF +
-	"Hello world" + CRLF +
-	"line with trailing space         " + CRLF +
-	"line with           space         " + CRLF +
-	"-- " + CRLF +
-	"Toorop  " + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
+	"Hello world" + CRLF //+
+//"line with trailing space         " + CRLF +
+//"line with           space         " + CRLF +
+//"-- " + CRLF +
+//"Toorop" // + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
 
 var headerSimple = "From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
 	"Date: Fri, 1 May 2015 11:48:37 +0200" + CRLF +
@@ -172,9 +172,9 @@ func Test_Sign(t *testing.T) {
 	options.Canonicalization = "relaxed/relaxed"
 	options.Domain = domain
 	options.Selector = selector
-	options.AddSignatureTimestamp = true
-	options.SignatureExpireIn = 3600
-	options.Headers = []string{"from", "date", "mime-version", "received", "received", "In-Reply-To"}
+	//options.AddSignatureTimestamp = true
+	//options.SignatureExpireIn = 3600
+	options.Headers = []string{"from"}
 	emailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
 	raw, _ := ioutil.ReadAll(emailReader)

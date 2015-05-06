@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	//"fmt"
 	"hash"
 	"io/ioutil"
 	"regexp"
@@ -20,7 +21,7 @@ import (
 
 const (
 	CRLF                = "\r\n"
-	TAB                 = "\t"
+	TAB                 = " "
 	FWS                 = CRLF + TAB
 	MaxHeaderLineLength = 70
 )
@@ -167,7 +168,8 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		h2 = sha256.New()
 		h3 = crypto.SHA256
 	}
-	bodyHash = base64.StdEncoding.EncodeToString(h1.Sum(body))
+	h1.Write(body)
+	bodyHash = base64.StdEncoding.EncodeToString(h1.Sum(nil))
 
 	// Get dkim header base
 	dkimHeader := NewDkimHeaderBySigOptions(options)
@@ -179,6 +181,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		return nil, err
 	}
 	headers = append(headers, []byte(dHeaderCanonicalized)...)
+	headers = bytes.TrimRight(headers, " \r\n")
 
 	// sign
 	h2.Write(headers)
@@ -189,9 +192,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	sig64 := base64.StdEncoding.EncodeToString(sig)
 
 	// add to DKIM-Header
-
-	dHeader += ";" + FWS
-	subh := "b="
+	subh := ""
 	l := len(subh)
 	for _, c := range sig64 {
 		subh += string(c)
@@ -227,6 +228,8 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 		return
 	}
 
+	//fmt.Println(email)
+	// todo \n -> \r\n
 	parts := bytes.SplitN(email, []byte{13, 10, 13, 10}, 2)
 
 	if len(parts) != 2 {
@@ -325,12 +328,6 @@ func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body 
 			}
 		}
 	}
-	return
-
-	/*println(string(parts[0]))
-	println("\r\n")
-	println(string(parts[1]))
-	println(string(body))*/
 	return
 }
 

@@ -216,6 +216,18 @@ func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 	}
 	subh += " d=" + d.Domain + ";"
 
+	// Auid
+	if len(d.Auid) != 0 {
+		if len(subh)+len(d.Auid)+4 > MaxHeaderLineLength {
+			h += subh + FWS
+			subh = ""
+		}
+		subh += " i=" + d.Auid + ";"
+	}
+
+	/*h := "DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=tmail.io; i=@tmail.io;" + FWS
+	subh := "q=dns/txt; s=test;"*/
+
 	// signature timestamp
 	if !d.SignatureTimestamp.IsZero() {
 		ts := d.SignatureTimestamp.Unix()
@@ -274,7 +286,9 @@ func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
 			l = 0
 		}
 	}
-	h += subh
+	h += subh + ";" + FWS + "b="
 
 	return h
 }
+
+//'test._domainkey.tmail.io:v=DKIM1;k=rsa;s=email;h=sha256;t=y;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDNUXO+Qsl1tw+GjrqFajz0ERSEUs1FHSL/+udZRWn1Atw8gz0+tcGqhWChBDeU9gY5sKLEAZnX3FjC/T/IbqeiSM68kS5vLkzRI84eiJrm3+IieUqIIicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv+VPgO1JWdooURcSC6QIDAQAB':300::
