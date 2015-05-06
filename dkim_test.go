@@ -2,10 +2,10 @@ package dkim
 
 import (
 	"bytes"
-	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -47,11 +47,11 @@ var email = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -
 	"From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
 	"To: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@toorop.fr>" + CRLF +
 	"Content-Type: text/plain; charset=UTF-8" + CRLF + CRLF +
-	"Hello world" + CRLF //+
-//"line with trailing space         " + CRLF +
-//"line with           space         " + CRLF +
-//"-- " + CRLF +
-//"Toorop" // + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
+	"Hello world" + CRLF +
+	"line with trailing space         " + CRLF +
+	"line with           space         " + CRLF +
+	"-- " + CRLF +
+	"Toorop" + CRLF + CRLF + CRLF + CRLF + CRLF + CRLF
 
 var headerSimple = "From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
 	"Date: Fri, 1 May 2015 11:48:37 +0200" + CRLF +
@@ -73,13 +73,27 @@ var bodySimple = "Hello world" + CRLF +
 	"line with trailing space         " + CRLF +
 	"line with           space         " + CRLF +
 	"-- " + CRLF +
-	"Toorop  " + CRLF
+	"Toorop" + CRLF
 
 var bodyRelaxed = "Hello world" + CRLF +
 	"line with trailing space" + CRLF +
 	"line with space" + CRLF +
 	"--" + CRLF +
 	"Toorop" + CRLF
+
+var signedRelaxedRelaxed = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;" + CRLF +
+	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
+	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
+	" b=byhiFWd0lAM1sqD1tl8S1DZtKNqgiEZp8jrGds6RRydnZkdX9rCPeL0Q5MYWBQ/JmQrml5" + CRLF +
+	" pIghLwl/EshDBmNy65O6qO8pSSGgZmM3T7SRLMloex8bnrBJ4KSYcHV46639gVEWcBOKW0" + CRLF +
+	" h1djZu2jaTuxGeJzlFVtw3Arf2B93cc=" + CRLF + email
+
+var signedSimpleSimple = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
+	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
+	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
+	" b=SoEhlu1Emm2ASqo8jMhz6FIf2nNHt3ouY4Av/pFFEkQ048RqUFP437ap7RbtL2wh0N3Kkm" + CRLF +
+	" AKF2TcTLZ++1nalq+djU+/aP4KYQd4RWWFBjkxDzvCH4bvB1M5AGp4Qz9ldmdMQBWOvvSp" + CRLF +
+	" DIpJW4XNA/uqLSswtjCYbJsSg9Ywv1o=" + CRLF + email
 
 func Test_NewSigOptions(t *testing.T) {
 	options := NewSigOptions()
@@ -169,15 +183,25 @@ func Test_Sign(t *testing.T) {
 	emailReader := bytes.NewReader([]byte(email))
 	options := NewSigOptions()
 	options.PrivateKey = privKey
-	options.Canonicalization = "relaxed/relaxed"
 	options.Domain = domain
 	options.Selector = selector
-	options.AddSignatureTimestamp = true
-	options.SignatureExpireIn = 3600
+	//options.AddSignatureTimestamp = true
+	//options.SignatureExpireIn = 3600
 	options.BodyLength = 5
-	options.Headers = []string{"from"}
-	emailReader, err := Sign(emailReader, options)
+	options.Headers = []string{"from", "date", "mime-version", "received", "received"}
+	options.Canonicalization = "relaxed/relaxed"
+	signedEmailReader, err := Sign(emailReader, options)
 	assert.NoError(t, err)
-	raw, _ := ioutil.ReadAll(emailReader)
-	fmt.Println(string(raw))
+	raw, _ := ioutil.ReadAll(signedEmailReader)
+	emailReader.Seek(0, 0)
+	assert.Equal(t, []byte(signedRelaxedRelaxed), raw)
+
+	options.Canonicalization = "simple/simple"
+	emailReader, err = Sign(emailReader, options)
+	assert.NoError(t, err)
+	raw, _ = ioutil.ReadAll(emailReader)
+	assert.Equal(t, []byte(signedSimpleSimple), raw)
+
+	//raw, _ = ioutil.ReadAll(emailReader)
+	//fmt.Println(string(raw))
 }
