@@ -1,7 +1,12 @@
 package dkim
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"net/mail"
+	"net/textproto"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -180,7 +185,16 @@ type DkimHeader struct {
 	// in the "z=" tag.  Copied header field values are for diagnostic
 	// use.
 	// tag z
-	CopiedHeaderFileds []string
+	CopiedHeaderFields []string
+
+	// HeaderMailFromDomain store the raw email address of the header Mail From
+	// used for verifying in case of multiple DKIM header (we will prioritise
+	// header with d = mail from domain)
+	//HeaderMailFromDomain string
+
+	// RawForsign represents the raw part (with non canonicalization) of the header
+	// used for computint sig in verify process
+	RawForSign string
 }
 
 // NewDkimHeaderBySigOptions return a new DkimHeader initioalized with sigOptions value
@@ -201,13 +215,165 @@ func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
 	if options.SignatureExpireIn > 0 {
 		h.SignatureExpiration = time.Now().Add(time.Duration(options.SignatureExpireIn) * time.Second)
 	}
-	h.CopiedHeaderFileds = options.CopiedHeaderFileds
+	h.CopiedHeaderFields = options.CopiedHeaderFields
 	return h
+}
+
+// NewFromEmail return a new DkimHeader by parsing an email
+// Note: according to RFC 6376 an email can have multiple DKIM Header
+// in this case we return the last inserted or the last with d== mail from
+func NewFromEmail(email *[]byte) (*DkimHeader, error) {
+	m, err := mail.ReadMessage(bytes.NewReader(*email))
+	if err != nil {
+		return nil, err
+	}
+
+	// DKIM header ?
+	if len(m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")]) == 0 {
+		return nil, ErrDkimHeaderNotFound
+	}
+
+	// Get mail from domain
+	mailFromDomain := ""
+	mailfrom, err := mail.ParseAddress(m.Header.Get(textproto.CanonicalMIMEHeaderKey("From")))
+	if err != nil {
+		if err.Error() != "mail: no address" {
+			return nil, err
+		}
+	} else {
+		t := strings.SplitAfter(mailfrom.Address, "@")
+		if len(t) > 1 {
+			mailFromDomain = strings.ToLower(t[1])
+		}
+	}
+
+	var keep *DkimHeader
+	var keepErr error
+	for _, dk := range m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")] {
+		parsed, err := parseDkHeader(dk)
+		// if malformed dkim header try next
+		if err != nil {
+			keepErr = err
+			continue
+		}
+		// Keep first dkim headers
+		if keep == nil {
+			keep = parsed
+		}
+		// if d flag == domain keep this header and return
+		if mailFromDomain == parsed.Domain {
+			return parsed, nil
+		}
+	}
+	if keep == nil {
+		return nil, keepErr
+	}
+	return keep, nil
+}
+
+func parseDkHeader(header string) (dkh *DkimHeader, err error) {
+	dkh = new(DkimHeader)
+
+	t := strings.LastIndex(header, "b=")
+	if t == -1 {
+		return nil, ErrDkimHeaderBTagNotFound
+	}
+	dkh.RawForSign = header[0 : t+2]
+	// Mandatory
+	mandatoryFlags := make(map[string]bool, 7) //(b'v', b'a', b'b', b'bh', b'd', b'h', b's')
+	mandatoryFlags["v"] = false
+	mandatoryFlags["a"] = false
+	mandatoryFlags["b"] = false
+	mandatoryFlags["bh"] = false
+	mandatoryFlags["d"] = false
+	mandatoryFlags["h"] = false
+	mandatoryFlags["s"] = false
+
+	// default values
+	dkh.MessageCanonicalization = "simple/simple"
+	dkh.QueryMethods = []string{"dns/txt"}
+
+	fs := strings.Split(header, ";")
+	for _, f := range fs {
+		flagData := strings.SplitN(f, "=", 2)
+		flag := strings.ToLower(strings.TrimSpace(flagData[0]))
+		data := strings.TrimSpace(flagData[1])
+		switch flag {
+		case "v":
+			if data != "1" {
+				return nil, ErrDkimVersionUnsuported
+			}
+			dkh.Version = data
+			mandatoryFlags["v"] = true
+		case "a":
+			dkh.Algorithm = strings.ToLower(data)
+			if dkh.Algorithm != "rsa-sha1" && dkh.Algorithm != "rsa-sha256" {
+				return nil, ErrSignBadAlgo
+			}
+			mandatoryFlags["a"] = true
+		case "b":
+			dkh.SignatureData = removeFWS(data)
+			mandatoryFlags["b"] = true
+		case "bh":
+			dkh.BodyHash = removeFWS(data)
+			mandatoryFlags["bh"] = true
+		case "d":
+			dkh.Domain = strings.ToLower(data)
+			mandatoryFlags["d"] = true
+		case "h":
+			data = strings.ToLower(data)
+			dkh.Headers = strings.Split(data, ":")
+			mandatoryFlags["h"] = true
+		case "s":
+			dkh.Selector = strings.ToLower(data)
+			mandatoryFlags["s"] = true
+		case "c":
+			dkh.MessageCanonicalization, err = validateCanonicalization(strings.ToLower(data))
+			if err != nil {
+				return
+			}
+		case "i":
+			dkh.Auid = data
+		case "l":
+			ui, err := strconv.ParseUint(data, 10, 32)
+			if err != nil {
+				return nil, err
+			}
+			dkh.BodyLength = uint(ui)
+		case "q":
+			dkh.QueryMethods = strings.Split(data, ":")
+		case "t":
+			ts, err := strconv.ParseInt(data, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			dkh.SignatureTimestamp = time.Unix(ts, 0)
+
+		case "x":
+			ts, err := strconv.ParseInt(data, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			dkh.SignatureExpiration = time.Unix(ts, 0)
+		case "z":
+			dkh.CopiedHeaderFields = strings.Split(data, "|")
+		}
+	}
+
+	// All mandatory flags are in ?
+	for f, p := range mandatoryFlags {
+		if !p {
+			return nil, errors.New("missing '" + f + "' flag in DKIM header")
+		}
+	}
+
+	return dkh, nil
+
 }
 
 // GetHeaderBase return base header for signers
 // Todo: some refactoring needed...
-func (d *DkimHeader) GetHeaderBase(bodyHash string) string {
+func (d *DkimHeader) GetHeaderBaseForSigning(bodyHash string) string {
 	h := "DKIM-Signature: v=" + d.Version + "; a=" + d.Algorithm + "; q=" + strings.Join(d.QueryMethods, ":") + "; c=" + d.MessageCanonicalization + ";" + CRLF + TAB
 	subh := "s=" + d.Selector + ";"
 	if len(subh)+len(d.Domain)+4 > MaxHeaderLineLength {

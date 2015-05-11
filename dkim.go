@@ -68,14 +68,14 @@ type sigOptions struct {
 	SignatureExpireIn uint64
 
 	// CopiedHeaderFileds
-	CopiedHeaderFileds []string
+	CopiedHeaderFields []string
 }
 
 // NewSigOption returns new sigoption with some defaults value
 func NewSigOptions() sigOptions {
 	return sigOptions{
 		Version:               1,
-		Canonicalization:      "relaxed/simple",
+		Canonicalization:      "simple/simple",
 		Algo:                  "rsa-sha256",
 		Headers:               []string{"from"},
 		BodyLength:            0,
@@ -111,18 +111,9 @@ func Sign(email *[]byte, options sigOptions) error {
 	}
 
 	// Canonicalization
-	options.Canonicalization = strings.ToLower(options.Canonicalization)
-	p := strings.Split(options.Canonicalization, "/")
-	if len(p) > 2 {
-		return ErrSignBadCanonicalization
-	}
-	if len(p) == 1 {
-		options.Canonicalization = options.Canonicalization + "/simple"
-	}
-	for _, c := range p {
-		if c != "simple" && c != "relaxed" {
-			return ErrSignBadCanonicalization
-		}
+	options.Canonicalization, err = validateCanonicalization(strings.ToLower(options.Canonicalization))
+	if err != nil {
+		return err
 	}
 
 	// Algo
@@ -146,7 +137,7 @@ func Sign(email *[]byte, options sigOptions) error {
 	}
 
 	// Normalize
-	headers, body, err := canonicalize(email, options)
+	headers, body, err := canonicalize(email, options.Canonicalization, options.Headers)
 	if err != nil {
 		return err
 	}
@@ -179,7 +170,7 @@ func Sign(email *[]byte, options sigOptions) error {
 
 	// Get dkim header base
 	dkimHeader := NewDkimHeaderBySigOptions(options)
-	dHeader := dkimHeader.GetHeaderBase(bodyHash)
+	dHeader := dkimHeader.GetHeaderBaseForSigning(bodyHash)
 
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 	dHeaderCanonicalized, err := canonicalizeHeader(dHeader, canonicalizations[0])
@@ -214,8 +205,35 @@ func Sign(email *[]byte, options sigOptions) error {
 	return nil
 }
 
+// verify verifies an email an return
+// state: SUCCESS or PERMFAIL or TEMPFAIL or NOTSIGNED
+// msg: a complementary message (if needed)
+// error: if an error occurs during verification
+func Verify(email *[]byte) (state, msg string, err error) {
+	// parse email
+	dkimHeader, err := NewFromEmail(email)
+	if err != nil {
+		if err == ErrDkimHeaderNotFound {
+			return "NOTSIGNED", ErrDkimHeaderNotFound.Error(), nil
+		} else {
+			return "PERMFAIL", err.Error(), err
+		}
+	}
+	println(dkimHeader)
+
+	// 	// Normalize
+	headers, body, err := canonicalize(email, dkimHeader.MessageCanonicalization, dkimHeader.Headers)
+	if err != nil {
+		return "PERMFAIL", err.Error(), err
+	}
+
+	// HERE
+
+	return "SUCCESS", "", nil
+}
+
 // canonicalize returns canonicalized version of header and body
-func canonicalize(email *[]byte, options sigOptions) (headers, body []byte, err error) {
+func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte, err error) {
 	body = []byte{}
 	rxReduceWS := regexp.MustCompile(`[ \t]+`)
 
@@ -231,7 +249,7 @@ func canonicalize(email *[]byte, options sigOptions) (headers, body []byte, err 
 		parts[1] = []byte{13, 10}
 	}
 
-	canonicalizations := strings.Split(options.Canonicalization, "/")
+	canonicalizations := strings.Split(cano, "/")
 
 	// canonicalyze header
 	headersList := list.New()
@@ -258,7 +276,7 @@ func canonicalize(email *[]byte, options sigOptions) (headers, body []byte, err 
 	var match *list.Element
 	headersToKeepList := list.New()
 
-	for _, headerToKeep := range options.Headers {
+	for _, headerToKeep := range h {
 		match = nil
 		headerToKeepToLower := strings.ToLower(headerToKeep)
 		for e := headersList.Front(); e != nil; e = e.Next() {
@@ -323,7 +341,7 @@ func canonicalize(email *[]byte, options sigOptions) (headers, body []byte, err 
 
 // canonicalizeHeader returns canonicalized version of header
 func canonicalizeHeader(header string, algo string) (string, error) {
-	rxReduceWS := regexp.MustCompile(`[ \t]+`)
+	//rxReduceWS := regexp.MustCompile(`[ \t]+`)
 	if algo == "simple" {
 		// The "simple" header canonicalization algorithm does not change header
 		// fields in any way.  Header fields MUST be presented to the signing or
@@ -360,11 +378,36 @@ func canonicalizeHeader(header string, algo string) (string, error) {
 		}
 		k := strings.ToLower(kv[0])
 		k = strings.TrimSpace(k)
-		v := strings.Replace(kv[1], "\n", "", -1)
-		v = strings.Replace(v, "\r", "", -1)
-		v = rxReduceWS.ReplaceAllString(v, " ")
-		v = strings.TrimSpace(v)
+		v := removeFWS(kv[1])
+		//v = rxReduceWS.ReplaceAllString(v, " ")
+		//v = strings.TrimSpace(v)
 		return k + ":" + v + CRLF, nil
 	}
 	return header, ErrSignBadCanonicalization
+}
+
+// removeFWS removes all FWS from string
+func removeFWS(in string) string {
+	rxReduceWS := regexp.MustCompile(`[ \t]+`)
+	out := strings.Replace(in, "\n", "", -1)
+	out = strings.Replace(out, "\r", "", -1)
+	out = rxReduceWS.ReplaceAllString(out, " ")
+	return strings.TrimSpace(out)
+}
+
+// validateCanonicalization validate canonicalization (c flag)
+func validateCanonicalization(cano string) (string, error) {
+	p := strings.Split(cano, "/")
+	if len(p) > 2 {
+		return "", ErrSignBadCanonicalization
+	}
+	if len(p) == 1 {
+		cano = cano + "/simple"
+	}
+	for _, c := range p {
+		if c != "simple" && c != "relaxed" {
+			return "", ErrSignBadCanonicalization
+		}
+	}
+	return cano, nil
 }

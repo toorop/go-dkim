@@ -34,4 +34,15 @@ var (
 
 	// ErrBadDKimTagLBodyTooShort
 	ErrBadDKimTagLBodyTooShort = errors.New("bad tag l or bodyLength option. Body length < l value")
+
+	// ErrDkimHeaderNotFound when there's no DKIM-Signature header in an email we have to verify
+	ErrDkimHeaderNotFound = errors.New("no DKIM-Signature header field found ")
+
+	// ErrDkimHeaderBTagNotFound when there's no b tag
+	ErrDkimHeaderBTagNotFound = errors.New("no tag 'b' found in dkim header")
+
+	ErrDkimHeaderMissingTagV = errors.New("no tag 'v' found in dkim header")
+
+	// Version not supported
+	ErrDkimVersionUnsuported = errors.New("unsuported DKIM version")
 )
