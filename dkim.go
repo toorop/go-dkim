@@ -11,8 +11,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	//"fmt"
 	"hash"
-	"io/ioutil"
+	//"io/ioutil"
 	"regexp"
 	"strings"
 )
@@ -74,61 +75,60 @@ type sigOptions struct {
 func NewSigOptions() sigOptions {
 	return sigOptions{
 		Version:               1,
-		Canonicalization:      "simple/simple",
+		Canonicalization:      "relaxed/simple",
 		Algo:                  "rsa-sha256",
 		Headers:               []string{"from"},
 		BodyLength:            0,
 		QueryMethods:          []string{"dns/txt"},
-		AddSignatureTimestamp: false,
+		AddSignatureTimestamp: true,
 		SignatureExpireIn:     0,
 	}
 }
 
 // Sign signs an email
-func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
+func Sign(email *[]byte, options sigOptions) error {
 	var privateKey *rsa.PrivateKey
 
-	// PrivateKey (required & TODO: valid)
+	// PrivateKey
 	if options.PrivateKey == "" {
-		return nil, ErrSignPrivateKeyRequired
+		return ErrSignPrivateKeyRequired
 	}
-
 	d, _ := pem.Decode([]byte(options.PrivateKey))
 	key, err := x509.ParsePKCS1PrivateKey(d.Bytes)
 	if err != nil {
-		return nil, ErrCandNotParsePrivateKey
+		return ErrCandNotParsePrivateKey
 	}
 	privateKey = key
 
 	// Domain required
 	if options.Domain == "" {
-		return nil, ErrSignDomainRequired
+		return ErrSignDomainRequired
 	}
 
 	// Selector required
 	if options.Selector == "" {
-		return nil, ErrSignSelectorRequired
+		return ErrSignSelectorRequired
 	}
 
 	// Canonicalization
 	options.Canonicalization = strings.ToLower(options.Canonicalization)
 	p := strings.Split(options.Canonicalization, "/")
 	if len(p) > 2 {
-		return nil, ErrSignBadCanonicalization
+		return ErrSignBadCanonicalization
 	}
 	if len(p) == 1 {
 		options.Canonicalization = options.Canonicalization + "/simple"
 	}
 	for _, c := range p {
 		if c != "simple" && c != "relaxed" {
-			return nil, ErrSignBadCanonicalization
+			return ErrSignBadCanonicalization
 		}
 	}
 
 	// Algo
 	options.Algo = strings.ToLower(options.Algo)
 	if options.Algo != "rsa-sha1" && options.Algo != "rsa-sha256" {
-		return nil, ErrSignBadAlgo
+		return ErrSignBadAlgo
 	}
 
 	// Header must contain "from"
@@ -142,13 +142,13 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		}
 	}
 	if !hasFrom {
-		return nil, ErrSignHeaderShouldContainsFrom
+		return ErrSignHeaderShouldContainsFrom
 	}
 
 	// Normalize
 	headers, body, err := canonicalize(email, options)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// hash body
@@ -169,7 +169,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	// if l tag (body length)
 	if options.BodyLength != 0 {
 		if uint(len(body)) < options.BodyLength {
-			return nil, ErrBadDKimTagLBodyTooShort
+			return ErrBadDKimTagLBodyTooShort
 		}
 		body = body[0:options.BodyLength]
 	}
@@ -184,7 +184,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 	dHeaderCanonicalized, err := canonicalizeHeader(dHeader, canonicalizations[0])
 	if err != nil {
-		return nil, err
+		return err
 	}
 	headers = append(headers, []byte(dHeaderCanonicalized)...)
 	headers = bytes.TrimRight(headers, " \r\n")
@@ -193,7 +193,7 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 	h2.Write(headers)
 	sig, err := rsa.SignPKCS1v15(rand.Reader, privateKey, h3, h2.Sum(nil))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sig64 := base64.StdEncoding.EncodeToString(sig)
 
@@ -210,32 +210,17 @@ func Sign(email *bytes.Reader, options sigOptions) (*bytes.Reader, error) {
 		}
 	}
 	dHeader += subh + CRLF
-
-	// Out
-	rawmail := []byte(dHeader)
-	t, err := ioutil.ReadAll(email)
-	if err != nil {
-		return nil, err
-	}
-
-	rawmail = append(rawmail, t...)
-	return bytes.NewReader(rawmail), nil
+	*email = append([]byte(dHeader), *email...)
+	return nil
 }
 
 // canonicalize returns canonicalized version of header and body
-func canonicalize(emailReader *bytes.Reader, options sigOptions) (headers, body []byte, err error) {
-	var email []byte
+func canonicalize(email *[]byte, options sigOptions) (headers, body []byte, err error) {
 	body = []byte{}
 	rxReduceWS := regexp.MustCompile(`[ \t]+`)
 
-	email, err = ioutil.ReadAll(emailReader)
-	emailReader.Seek(0, 0)
-	if err != nil {
-		return
-	}
-
 	// TODO: \n -> \r\n
-	parts := bytes.SplitN(email, []byte{13, 10, 13, 10}, 2)
+	parts := bytes.SplitN(*email, []byte{13, 10, 13, 10}, 2)
 
 	if len(parts) != 2 {
 		return headers, body, ErrBadMailFormat
