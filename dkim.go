@@ -243,7 +243,10 @@ func Verify(email *[]byte) (VerifyOutput, error) {
 	}
 
 	// we do not set quesry method because if it's other validation failed earlier
-	pubKey, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
+	pubKey, verifyOutputOnError, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
+	if err != nil {
+		return verifyOutputOnError, err
+	}
 	println(pubKey)
 
 	return SUCCESS, nil
