@@ -14,6 +14,7 @@ import (
 	//"fmt"
 	"hash"
 	//"io/ioutil"
+	//"net"
 	"regexp"
 	"strings"
 )
@@ -23,6 +24,15 @@ const (
 	TAB                 = " "
 	FWS                 = CRLF + TAB
 	MaxHeaderLineLength = 70
+)
+
+type VerifyOutput int
+
+const (
+	SUCCESS VerifyOutput = 1 + iota
+	PERMFAIL
+	TEMPFAIL
+	NOTSIGNED
 )
 
 // sigOptions represents signing options
@@ -143,30 +153,23 @@ func Sign(email *[]byte, options sigOptions) error {
 	}
 
 	// hash body
-	var bodyHash string
-	var h1, h2 hash.Hash
+	var h2 hash.Hash
 	var h3 crypto.Hash
 	signHash := strings.Split(options.Algo, "-")
 	if signHash[1] == "sha1" {
-		h1 = sha1.New()
+		//h1 = sha1.New()
 		h2 = sha1.New()
 		h3 = crypto.SHA1
 	} else {
-		h1 = sha256.New()
+		//h1 = sha256.New()
 		h2 = sha256.New()
 		h3 = crypto.SHA256
 	}
 
-	// if l tag (body length)
-	if options.BodyLength != 0 {
-		if uint(len(body)) < options.BodyLength {
-			return ErrBadDKimTagLBodyTooShort
-		}
-		body = body[0:options.BodyLength]
+	bodyHash, err := getBodyHash(&body, signHash[1], options.BodyLength)
+	if err != nil {
+		return err
 	}
-
-	h1.Write(body)
-	bodyHash = base64.StdEncoding.EncodeToString(h1.Sum(nil))
 
 	// Get dkim header base
 	dkimHeader := NewDkimHeaderBySigOptions(options)
@@ -209,27 +212,41 @@ func Sign(email *[]byte, options sigOptions) error {
 // state: SUCCESS or PERMFAIL or TEMPFAIL or NOTSIGNED
 // msg: a complementary message (if needed)
 // error: if an error occurs during verification
-func Verify(email *[]byte) (state, msg string, err error) {
+func Verify(email *[]byte) (VerifyOutput, error) {
 	// parse email
 	dkimHeader, err := NewFromEmail(email)
 	if err != nil {
 		if err == ErrDkimHeaderNotFound {
-			return "NOTSIGNED", ErrDkimHeaderNotFound.Error(), nil
+			return NOTSIGNED, ErrDkimHeaderNotFound
 		} else {
-			return "PERMFAIL", err.Error(), err
+			return PERMFAIL, err
 		}
 	}
-	println(dkimHeader)
 
-	// 	// Normalize
-	headers, body, err := canonicalize(email, dkimHeader.MessageCanonicalization, dkimHeader.Headers)
+	// Normalize
+	_, body, err := canonicalize(email, dkimHeader.MessageCanonicalization, dkimHeader.Headers)
 	if err != nil {
-		return "PERMFAIL", err.Error(), err
+		return PERMFAIL, err
+	}
+	sigHash := strings.Split(dkimHeader.Algorithm, "-")
+
+	// expired ? TODO
+
+	// get body hash
+	bodyHash, err := getBodyHash(&body, sigHash[0], dkimHeader.BodyLength)
+	if err != nil {
+		return PERMFAIL, err
+	}
+	println(bodyHash)
+	if bodyHash != dkimHeader.BodyHash {
+		return PERMFAIL, ErrVerifyBodyHash
 	}
 
-	// HERE
+	// we do not set quesry method because if it's other validation failed earlier
+	pubKey, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
+	println(pubKey)
 
-	return "SUCCESS", "", nil
+	return SUCCESS, nil
 }
 
 // canonicalize returns canonicalized version of header and body
@@ -384,6 +401,27 @@ func canonicalizeHeader(header string, algo string) (string, error) {
 		return k + ":" + v + CRLF, nil
 	}
 	return header, ErrSignBadCanonicalization
+}
+
+// getBodyHash return the hash (bas64encoded) of the body
+func getBodyHash(body *[]byte, algo string, bodyLength uint) (string, error) {
+	var h hash.Hash
+	if algo == "sha1" {
+		h = sha1.New()
+	} else {
+		h = sha256.New()
+	}
+	toH := *body
+	// if l tag (body length)
+	if bodyLength != 0 {
+		if uint(len(toH)) < bodyLength {
+			return "", ErrBadDKimTagLBodyTooShort
+		}
+		toH = toH[0:bodyLength]
+	}
+
+	h.Write(toH)
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
 // removeFWS removes all FWS from string

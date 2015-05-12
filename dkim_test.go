@@ -112,7 +112,7 @@ var signedSimpleSimple = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple
 	" DIpJW4XNA/uqLSswtjCYbJsSg9Ywv1o=" + CRLF + emailBase
 
 var signedNoFrom = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
-	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
+	" s=test; d=tmail.io; h=from:date:mime-version:received:received;" + CRLF +
 	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
 	" b=SoEhlu1Emm2ASqo8jMhz6FIf2nNHt3ouY4Av/pFFEkQ048RqUFP437ap7RbtL2wh0N3Kkm" + CRLF +
 	" AKF2TcTLZ++1nalq+djU+/aP4KYQd4RWWFBjkxDzvCH4bvB1M5AGp4Qz9ldmdMQBWOvvSp" + CRLF +
@@ -258,28 +258,38 @@ func Test_Sign(t *testing.T) {
 func Test_Verify(t *testing.T) {
 	// no DKIM header
 	email := []byte(emailBase)
-	status, msg, err := Verify(&email)
-	assert.NoError(t, err)
-	assert.Equal(t, "NOTSIGNED", status)
-	assert.Equal(t, ErrDkimHeaderNotFound.Error(), msg)
+	status, err := Verify(&email)
+	assert.Equal(t, NOTSIGNED, status)
+	assert.Equal(t, ErrDkimHeaderNotFound, err)
 
 	// No From
 	email = []byte(signedNoFrom)
-	status, msg, err = Verify(&email)
-	assert.NoError(t, err)
-	assert.Equal(t, "SUCCESS", status)
+	status, err = Verify(&email)
+	assert.Equal(t, ErrVerifyBodyHash, err)
+	assert.Equal(t, PERMFAIL, status) // cause we use dkheader of the "with from" email
 
 	// missing mandatory 'a' flag
 	email = []byte(signedMissingFlag)
-	status, msg, err = Verify(&email)
+	status, err = Verify(&email)
 	assert.Error(t, err)
-	assert.Equal(t, "PERMFAIL", status)
-	assert.Equal(t, "missing 'a' flag in DKIM header", msg)
+	assert.Equal(t, PERMFAIL, status)
+	assert.Equal(t, ErrDkimHeaderMissingRequiredTag, err)
 
 	// missing bad algo
 	email = []byte(signedBadAlgo)
-	status, msg, err = Verify(&email)
-	assert.Error(t, err)
-	assert.Equal(t, "PERMFAIL", status)
-	assert.Equal(t, ErrSignBadAlgo.Error(), msg)
+	status, err = Verify(&email)
+	assert.Equal(t, PERMFAIL, status)
+	assert.Equal(t, ErrSignBadAlgo, err)
+
+	// relaxed
+	email = []byte(signedRelaxedRelaxed)
+	status, err = Verify(&email)
+	assert.NoError(t, err)
+	assert.Equal(t, SUCCESS, status)
+
+	// simple
+	email = []byte(signedSimpleSimple)
+	status, err = Verify(&email)
+	assert.NoError(t, err)
+	assert.Equal(t, SUCCESS, status)
 }

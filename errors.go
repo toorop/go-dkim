@@ -15,7 +15,7 @@ var (
 	ErrSignSelectorRequired = errors.New("Selector is required")
 
 	// If Headers is specified it should at least contain 'from'
-	ErrSignHeaderShouldContainsFrom = errors.New("Header must contains 'from' field")
+	ErrSignHeaderShouldContainsFrom = errors.New("header must contains 'from' field")
 
 	// If bad Canonicalization parameter
 	ErrSignBadCanonicalization = errors.New("bad Canonicalization parameter")
@@ -41,8 +41,21 @@ var (
 	// ErrDkimHeaderBTagNotFound when there's no b tag
 	ErrDkimHeaderBTagNotFound = errors.New("no tag 'b' found in dkim header")
 
-	ErrDkimHeaderMissingTagV = errors.New("no tag 'v' found in dkim header")
+	// ErrDkimHeaderNoFromInHTag
+	ErrDkimHeaderNoFromInHTag = errors.New("'from' header is missing in h tag")
+
+	// ErrDkimHeaderMissingRequiredTag when a required tag is missing
+	ErrDkimHeaderMissingRequiredTag = errors.New("signature missing required tag")
+
+	// ErrDkimHeaderDomainMismatch if i tag is not a sub domain of d tag
+	ErrDkimHeaderDomainMismatch = errors.New("domain mismatch")
 
 	// Version not supported
-	ErrDkimVersionUnsuported = errors.New("unsuported DKIM version")
+	ErrDkimVersionNotsupported = errors.New("incompatible version")
+
+	// Query method unsopported
+	errQueryMethodNotsupported = errors.New("query method not supported")
+
+	// ErrVerifyBodyHash when body hash doesn't verify
+	ErrVerifyBodyHash = errors.New("body hash did not verify")
 )

@@ -2,7 +2,7 @@ package dkim
 
 import (
 	"bytes"
-	"errors"
+	//"errors"
 	"fmt"
 	"net/mail"
 	"net/textproto"
@@ -271,6 +271,7 @@ func NewFromEmail(email *[]byte) (*DkimHeader, error) {
 	return keep, nil
 }
 
+// parseDkHeader parse raw dkim header
 func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 	dkh = new(DkimHeader)
 
@@ -301,7 +302,7 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 		switch flag {
 		case "v":
 			if data != "1" {
-				return nil, ErrDkimVersionUnsuported
+				return nil, ErrDkimVersionNotsupported
 			}
 			dkh.Version = data
 			mandatoryFlags["v"] = true
@@ -313,27 +314,51 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 			mandatoryFlags["a"] = true
 		case "b":
 			dkh.SignatureData = removeFWS(data)
-			mandatoryFlags["b"] = true
+			if len(dkh.SignatureData) != 0 {
+				mandatoryFlags["b"] = true
+			}
 		case "bh":
 			dkh.BodyHash = removeFWS(data)
-			mandatoryFlags["bh"] = true
+			if len(dkh.BodyHash) != 0 {
+				mandatoryFlags["bh"] = true
+			}
 		case "d":
 			dkh.Domain = strings.ToLower(data)
-			mandatoryFlags["d"] = true
+			if len(dkh.Domain) != 0 {
+				mandatoryFlags["d"] = true
+			}
 		case "h":
 			data = strings.ToLower(data)
 			dkh.Headers = strings.Split(data, ":")
-			mandatoryFlags["h"] = true
+			if len(dkh.Headers) != 0 {
+				mandatoryFlags["h"] = true
+			}
+			fromFound := false
+			for _, h := range dkh.Headers {
+				if h == "from" {
+					fromFound = true
+				}
+			}
+			if !fromFound {
+				return nil, ErrDkimHeaderNoFromInHTag
+			}
 		case "s":
 			dkh.Selector = strings.ToLower(data)
-			mandatoryFlags["s"] = true
+			if len(dkh.Selector) != 0 {
+				mandatoryFlags["s"] = true
+			}
 		case "c":
 			dkh.MessageCanonicalization, err = validateCanonicalization(strings.ToLower(data))
 			if err != nil {
-				return
+				return nil, err
 			}
 		case "i":
-			dkh.Auid = data
+			if data != "" {
+				if !strings.HasSuffix(data, dkh.Domain) {
+					return nil, ErrDkimHeaderDomainMismatch
+				}
+				dkh.Auid = data
+			}
 		case "l":
 			ui, err := strconv.ParseUint(data, 10, 32)
 			if err != nil {
@@ -342,6 +367,9 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 			dkh.BodyLength = uint(ui)
 		case "q":
 			dkh.QueryMethods = strings.Split(data, ":")
+			if len(dkh.QueryMethods) == 0 || strings.ToLower(dkh.QueryMethods[0]) != "dns/txt" {
+				return nil, errQueryMethodNotsupported
+			}
 		case "t":
 			ts, err := strconv.ParseInt(data, 10, 64)
 			if err != nil {
@@ -361,10 +389,20 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 	}
 
 	// All mandatory flags are in ?
-	for f, p := range mandatoryFlags {
+	for _, p := range mandatoryFlags {
 		if !p {
-			return nil, errors.New("missing '" + f + "' flag in DKIM header")
+			return nil, ErrDkimHeaderMissingRequiredTag
 		}
+	}
+
+	// default for i/Auid
+	if dkh.Auid == "" {
+		dkh.Auid = "@" + dkh.Domain
+	}
+
+	// defaut for query method
+	if len(dkh.QueryMethods) == 0 {
+		dkh.QueryMethods = []string{"dns/text"}
 	}
 
 	return dkh, nil
