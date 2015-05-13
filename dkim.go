@@ -17,6 +17,7 @@ import (
 	//"net"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -224,31 +225,56 @@ func Verify(email *[]byte) (VerifyOutput, error) {
 	}
 
 	// Normalize
-	_, body, err := canonicalize(email, dkimHeader.MessageCanonicalization, dkimHeader.Headers)
+	headers, body, err := canonicalize(email, dkimHeader.MessageCanonicalization, dkimHeader.Headers)
 	if err != nil {
 		return PERMFAIL, err
 	}
 	sigHash := strings.Split(dkimHeader.Algorithm, "-")
 
-	// expired ? TODO
+	// expired ?
+	if !dkimHeader.SignatureExpiration.IsZero() && dkimHeader.SignatureExpiration.Second() < time.Now().Second() {
+		return PERMFAIL, ErrVerifySignatureHasExpired
+	}
 
 	// get body hash
-	bodyHash, err := getBodyHash(&body, sigHash[0], dkimHeader.BodyLength)
+	bodyHash, err := getBodyHash(&body, sigHash[1], dkimHeader.BodyLength)
 	if err != nil {
 		return PERMFAIL, err
 	}
-	println(bodyHash)
 	if bodyHash != dkimHeader.BodyHash {
 		return PERMFAIL, ErrVerifyBodyHash
 	}
 
-	// we do not set quesry method because if it's other validation failed earlier
+	// we do not set query method because if it's others, validation failed earlier
 	pubKey, verifyOutputOnError, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
 	if err != nil {
 		return verifyOutputOnError, err
 	}
-	println(pubKey)
 
+	// check if hash algo are compatible
+	compatible := false
+	for _, algo := range pubKey.HashAlgo {
+		if sigHash[1] == algo {
+			compatible = true
+			break
+		}
+	}
+	if !compatible {
+		return PERMFAIL, ErrVerifyInappropriateHashAlgo
+	}
+
+	// compute sig
+	dkimHeaderCano, err := canonicalizeHeader(dkimHeader.RawForSign, strings.Split(dkimHeader.MessageCanonicalization, "/")[0])
+	if err != nil {
+		return TEMPFAIL, err
+	}
+	toSignStr := string(headers) + dkimHeaderCano
+	toSign := bytes.TrimRight([]byte(toSignStr), " \r\n")
+
+	err = verifySignature(toSign, dkimHeader.SignatureData, &pubKey.PubKey, sigHash[1])
+	if err != nil {
+		return PERMFAIL, err
+	}
 	return SUCCESS, nil
 }
 
@@ -257,22 +283,13 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 	body = []byte{}
 	rxReduceWS := regexp.MustCompile(`[ \t]+`)
 
-	// TODO: \n -> \r\n
-	parts := bytes.SplitN(*email, []byte{13, 10, 13, 10}, 2)
-
-	if len(parts) != 2 {
-		return headers, body, ErrBadMailFormat
-	}
-
-	// Empty body
-	if len(parts[1]) == 0 {
-		parts[1] = []byte{13, 10}
-	}
+	rawHeaders, rawBody, err := getHeadersBody(email)
 
 	canonicalizations := strings.Split(cano, "/")
 
 	// canonicalyze header
-	headersList := list.New()
+	headersList, err := getHeadersList(&rawHeaders)
+	/*headersList := list.New()
 	currentHeader := []byte{}
 	for _, line := range bytes.SplitAfter(parts[0], []byte{10}) {
 		if line[0] == 32 || line[0] == 9 {
@@ -289,7 +306,14 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 			}
 			currentHeader = append(currentHeader, line...)
 		}
+	}*/
+
+	// debug
+	/*fmt.Println("-------------------------------------------")
+	for e := headersList.Front(); e != nil; e = e.Next() {
+		fmt.Printf("|%s|\n", e.Value.(string))
 	}
+	fmt.Println("-------------------------------------------")*/
 
 	// pour chaque header a conserver on traverse tous les headers dispo
 	// If multi instance of a field we must keep it from the bottom to the top
@@ -300,6 +324,7 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		match = nil
 		headerToKeepToLower := strings.ToLower(headerToKeep)
 		for e := headersList.Front(); e != nil; e = e.Next() {
+			//fmt.Printf("|%s|\n", e.Value.(string))
 			t := strings.Split(e.Value.(string), ":")
 			if strings.ToLower(t[0]) == headerToKeepToLower {
 				match = e
@@ -333,7 +358,7 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		// of the body to a single "CRLF".
 		// Note that a completely empty or missing body is canonicalized as a
 		// single "CRLF"; that is, the canonicalized length will be 2 octets.
-		body = bytes.TrimRight(parts[1], "\r\n")
+		body = bytes.TrimRight(rawBody, "\r\n")
 		body = append(body, []byte{13, 10}...)
 	} else {
 		// relaxed
@@ -346,8 +371,8 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		// does not end with a CRLF, a CRLF is added.  (For email, this is
 		// only possible when using extensions to SMTP or non-SMTP transport
 		// mechanisms.)
-		parts[1] = rxReduceWS.ReplaceAll(parts[1], []byte(" "))
-		for _, line := range bytes.SplitAfter(parts[1], []byte{10}) {
+		rawBody = rxReduceWS.ReplaceAll(rawBody, []byte(" "))
+		for _, line := range bytes.SplitAfter(rawBody, []byte{10}) {
 			line = bytes.TrimRight(line, " \r\n")
 
 			if len(line) != 0 {
@@ -427,6 +452,57 @@ func getBodyHash(body *[]byte, algo string, bodyLength uint) (string, error) {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
+/*func getSignature(toSign *[]byte, key *rsa.PrivateKey, algo string) (string, error) {
+	var h1 hash.Hash
+	var h2 crypto.Hash
+	switch algo {
+	case "sha1":
+		h1 = sha1.New()
+		h2 = crypto.SHA1
+		break
+	case "sha256":
+		h1 = sha256.New()
+		h2 = crypto.SHA256
+		break
+	default:
+		return "", ErrVerifyInappropriateHashAlgo
+	}
+
+	// sign
+	h1.Write(*toSign)
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, h2, h1.Sum(nil))
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(sig), nil
+
+}*/
+
+func verifySignature(toSign []byte, sig64 string, key *rsa.PublicKey, algo string) error {
+	var h1 hash.Hash
+	var h2 crypto.Hash
+	switch algo {
+	case "sha1":
+		h1 = sha1.New()
+		h2 = crypto.SHA1
+		break
+	case "sha256":
+		h1 = sha256.New()
+		h2 = crypto.SHA256
+		break
+	default:
+		return ErrVerifyInappropriateHashAlgo
+	}
+
+	//fmt.Printf("|%s|", toSign)
+	h1.Write(toSign)
+	sig, err := base64.StdEncoding.DecodeString(sig64)
+	if err != nil {
+		return err
+	}
+	return rsa.VerifyPKCS1v15(key, h2, h1.Sum(nil), sig)
+}
+
 // removeFWS removes all FWS from string
 func removeFWS(in string) string {
 	rxReduceWS := regexp.MustCompile(`[ \t]+`)
@@ -451,4 +527,41 @@ func validateCanonicalization(cano string) (string, error) {
 		}
 	}
 	return cano, nil
+}
+
+// getHeadersList returns headers as list
+func getHeadersList(rawHeader *[]byte) (*list.List, error) {
+	headersList := list.New()
+	currentHeader := []byte{}
+	for _, line := range bytes.SplitAfter(*rawHeader, []byte{10}) {
+		if line[0] == 32 || line[0] == 9 {
+			if len(currentHeader) == 0 {
+				return headersList, ErrBadMailFormatHeaders
+			}
+			currentHeader = append(currentHeader, line...)
+		} else {
+			// New header, save current if exists
+			if len(currentHeader) != 0 {
+				headersList.PushBack(string(currentHeader))
+				currentHeader = []byte{}
+			}
+			currentHeader = append(currentHeader, line...)
+		}
+	}
+	headersList.PushBack(string(currentHeader))
+	return headersList, nil
+}
+
+// getHeadersBody return headers and body
+func getHeadersBody(email *[]byte) ([]byte, []byte, error) {
+	// TODO: \n -> \r\n
+	parts := bytes.SplitN(*email, []byte{13, 10, 13, 10}, 2)
+	if len(parts) != 2 {
+		return []byte{}, []byte{}, ErrBadMailFormat
+	}
+	// Empty body
+	if len(parts[1]) == 0 {
+		parts[1] = []byte{13, 10}
+	}
+	return parts[0], parts[1], nil
 }

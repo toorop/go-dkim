@@ -192,7 +192,7 @@ type DkimHeader struct {
 	// header with d = mail from domain)
 	//HeaderMailFromDomain string
 
-	// RawForsign represents the raw part (with non canonicalization) of the header
+	// RawForsign represents the raw part (without canonicalization) of the header
 	// used for computint sig in verify process
 	RawForSign string
 }
@@ -247,10 +247,30 @@ func NewFromEmail(email *[]byte) (*DkimHeader, error) {
 		}
 	}
 
+	// get raw dkim header
+	// we can't use m.header because header key will be converted with textproto.CanonicalMIMEHeaderKey
+	// ie if key in header is not DKIM-Signature but Dkim-Signature or DKIM-signature ot... other
+	// combination of case, verify will fail.
+	rawHeaders, _, err := getHeadersBody(email)
+	if err != nil {
+		return nil, ErrBadMailFormat
+	}
+	rawHeadersList, err := getHeadersList(&rawHeaders)
+	if err != nil {
+		return nil, err
+	}
+	dkHeaders := []string{}
+	for h := rawHeadersList.Front(); h != nil; h = h.Next() {
+		if strings.HasPrefix(strings.ToLower(h.Value.(string)), "dkim-signature") {
+			dkHeaders = append(dkHeaders, h.Value.(string))
+		}
+	}
+
 	var keep *DkimHeader
 	var keepErr error
-	for _, dk := range m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")] {
-		parsed, err := parseDkHeader(dk)
+	//for _, dk := range m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")] {
+	for _, h := range dkHeaders {
+		parsed, err := parseDkHeader(h)
 		// if malformed dkim header try next
 		if err != nil {
 			keepErr = err
@@ -275,6 +295,8 @@ func NewFromEmail(email *[]byte) (*DkimHeader, error) {
 func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 	dkh = new(DkimHeader)
 
+	keyVal := strings.SplitN(header, ":", 2)
+
 	t := strings.LastIndex(header, "b=")
 	if t == -1 {
 		return nil, ErrDkimHeaderBTagNotFound
@@ -294,7 +316,7 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 	dkh.MessageCanonicalization = "simple/simple"
 	dkh.QueryMethods = []string{"dns/txt"}
 
-	fs := strings.Split(header, ";")
+	fs := strings.Split(keyVal[1], ";")
 	for _, f := range fs {
 		flagData := strings.SplitN(f, "=", 2)
 		flag := strings.ToLower(strings.TrimSpace(flagData[0]))
@@ -313,7 +335,9 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 			}
 			mandatoryFlags["a"] = true
 		case "b":
-			dkh.SignatureData = removeFWS(data)
+			//dkh.SignatureData = removeFWS(data)
+			// remove all space
+			dkh.SignatureData = strings.Replace(removeFWS(data), " ", "", -1)
 			if len(dkh.SignatureData) != 0 {
 				mandatoryFlags["b"] = true
 			}

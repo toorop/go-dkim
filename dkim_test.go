@@ -252,6 +252,8 @@ func Test_Sign(t *testing.T) {
 	emailSimple := append([]byte(nil), email...)
 	err = Sign(&emailSimple, options)
 	assert.Equal(t, []byte(signedSimpleSimple), emailSimple)
+	//fmt.Println(signedSimpleSimple)
+	//fmt.Println(string(emailSimple))
 
 }
 

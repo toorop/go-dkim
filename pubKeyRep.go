@@ -4,7 +4,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"net"
 	"strings"
 )
@@ -40,6 +39,9 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, VerifyOutput, err
 	pkr.Version = "DKIM1"
 	pkr.HashAlgo = []string{"sha1", "sha256"}
 	pkr.KeyType = "rsa"
+	pkr.ServiceType = []string{"all"}
+	pkr.FlagTesting = false
+	pkr.FlagIMustBeD = false
 
 	// parsing, we keep the first record
 	// TODO: if there is multiple record
@@ -47,18 +49,22 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, VerifyOutput, err
 	p := strings.Split(txt[0], ";")
 	for i, data := range p {
 		keyVal := strings.SplitN(data, "=", 2)
+		val := ""
+		if len(keyVal) > 1 {
+			val = strings.TrimSpace(keyVal[1])
+		}
 		switch strings.ToLower(strings.TrimSpace(keyVal[0])) {
 		case "v":
 			// RFC: is this tag is specified it MUST be the first in the record
 			if i != 0 {
 				return nil, PERMFAIL, ErrVerifyTagVMustBeTheFirst
 			}
-			pkr.Version = strings.TrimSpace(keyVal[1])
+			pkr.Version = val
 			if pkr.Version != "DKIM1" {
 				return nil, PERMFAIL, ErrVerifyVersionMusBeDkim1
 			}
 		case "h":
-			p := strings.Split(strings.ToLower(keyVal[1]), ":")
+			p := strings.Split(strings.ToLower(val), ":")
 			pkr.HashAlgo = []string{}
 			for _, h := range p {
 				h = strings.TrimSpace(h)
@@ -71,34 +77,51 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, VerifyOutput, err
 				pkr.HashAlgo = []string{"sha1", "sha256"}
 			}
 		case "k":
-			if strings.ToLower(strings.TrimSpace(keyVal[1])) != "rsa" {
+			if strings.ToLower(val) != "rsa" {
 				return nil, PERMFAIL, ErrVerifyBadKeyType
 			}
 		case "n":
-			pkr.Note = strings.TrimSpace(keyVal[1])
+			pkr.Note = val
 		case "p":
-			rawkey := strings.TrimSpace(keyVal[1])
+			rawkey := val
 			if rawkey == "" {
 				return nil, PERMFAIL, ErrVerifyRevokedKey
 			}
-			// x509.ParsePKIXPublicKey(Dkim.PublicKey.PublicKey)
 			un64, err := base64.StdEncoding.DecodeString(rawkey)
 			if err != nil {
 				return nil, PERMFAIL, ErrVerifyBadKey
 			}
 			pk, err := x509.ParsePKIXPublicKey(un64)
 			pkr.PubKey = *pk.(*rsa.PublicKey)
-		// HERE
 		case "s":
+			t := strings.Split(strings.ToLower(val), ":")
+			for _, tt := range t {
+				if tt == "*" {
+					pkr.ServiceType = []string{"all"}
+					break
+				}
+				if tt == "email" {
+					pkr.ServiceType = []string{"email"}
+				}
+			}
 		case "t":
-
+			flags := strings.Split(strings.ToLower(val), ":")
+			for _, flag := range flags {
+				if flag == "y" {
+					pkr.FlagTesting = true
+					continue
+				}
+				if flag == "s" {
+					pkr.FlagIMustBeD = true
+				}
+			}
 		}
-
 	}
 
-	// TODO: If no pubkey
+	// if no pubkey
+	if pkr.PubKey == (rsa.PublicKey{}) {
+		return nil, PERMFAIL, ErrVerifyNoKey
+	}
 
-	fmt.Println(txt, err)
-
-	return nil, SUCCESS, nil
+	return pkr, SUCCESS, nil
 }

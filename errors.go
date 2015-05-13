@@ -79,4 +79,13 @@ var (
 
 	// ErrVerifyBadKey when we can't parse pubkey
 	ErrVerifyBadKey = errors.New("unable to parse pub key")
+
+	// ErrVerifyNoKey when no key is found on DNS record
+	ErrVerifyNoKey = errors.New("no public key found in DNS TXT")
+
+	// ErrVerifySignatureHasExpired when signature has expired
+	ErrVerifySignatureHasExpired = errors.New("signature has expired")
+
+	// ErrVerifyInappropriateHashAlgo when h tag in pub key doesn't contain hash algo from a tag of DKIM header
+	ErrVerifyInappropriateHashAlgo = errors.New("inappropriate has algorithm")
 )
