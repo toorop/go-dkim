@@ -31,7 +31,7 @@ func main(){
 	err := dkim.Sign(&email, options)
 	// handle err..
 
-	// And... that's it, 'email' is now signed ! Amazing© !!!
+	// And... that's it, 'email' is signed ! Amazing© !!!
 }
 ```
 
