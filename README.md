@@ -51,3 +51,6 @@ func main(){
 }
 ```
 
+## Todo
+
+- [ ] handle z tag (copied header fields used for diagnostic use)
