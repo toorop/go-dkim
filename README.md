@@ -1,6 +1,8 @@
 # go-dkim
 DKIM package for Golang
 
+[![GoDoc](https://godoc.org/github.com/Toorop/go-dkim?status.svg)](https://godoc.org/github.com/Toorop/go-dkim)
+
 ## Getting started
 
 ### Install
@@ -42,6 +44,7 @@ import (
 func main(){
 	// email is the email to verify (byte slice)
 	status, err := Verify(&email)
-	// handle status, err
+	// handle status, err (see godoc for status)
 }
 ```
+
