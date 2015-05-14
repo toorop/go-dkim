@@ -20,7 +20,7 @@ type pubKeyRep struct {
 	FlagIMustBeD bool // flag i
 }
 
-func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, VerifyOutput, error) {
+func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, error) {
 	txt, err := net.LookupTXT(selector + "._domainkey." + domain)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "no such host") {

@@ -268,7 +268,7 @@ func Test_Verify(t *testing.T) {
 	email = []byte(signedNoFrom)
 	status, err = Verify(&email)
 	assert.Equal(t, ErrVerifyBodyHash, err)
-	assert.Equal(t, PERMFAIL, status) // cause we use dkheader of the "with from" email
+	assert.Equal(t, TESTINGPERMFAIL, status) // cause we use dkheader of the "with from" email
 
 	// missing mandatory 'a' flag
 	email = []byte(signedMissingFlag)
