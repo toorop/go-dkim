@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type DkimHeader struct {
+type dkimHeader struct {
 	// Version  This tag defines the version of DKIM
 	// specification that applies to the signature record.
 	// tag v
@@ -197,8 +197,8 @@ type DkimHeader struct {
 }
 
 // NewDkimHeaderBySigOptions return a new DkimHeader initioalized with sigOptions value
-func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
-	h := new(DkimHeader)
+func newDkimHeaderBySigOptions(options sigOptions) *dkimHeader {
+	h := new(dkimHeader)
 	h.Version = "1"
 	h.Algorithm = options.Algo
 	h.MessageCanonicalization = options.Canonicalization
@@ -221,7 +221,7 @@ func NewDkimHeaderBySigOptions(options sigOptions) *DkimHeader {
 // NewFromEmail return a new DkimHeader by parsing an email
 // Note: according to RFC 6376 an email can have multiple DKIM Header
 // in this case we return the last inserted or the last with d== mail from
-func NewFromEmail(email *[]byte) (*DkimHeader, error) {
+func newDkimHeaderFromEmail(email *[]byte) (*dkimHeader, error) {
 	m, err := mail.ReadMessage(bytes.NewReader(*email))
 	if err != nil {
 		return nil, err
@@ -265,7 +265,7 @@ func NewFromEmail(email *[]byte) (*DkimHeader, error) {
 		}
 	}
 
-	var keep *DkimHeader
+	var keep *dkimHeader
 	var keepErr error
 	//for _, dk := range m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")] {
 	for _, h := range dkHeaders {
@@ -291,8 +291,8 @@ func NewFromEmail(email *[]byte) (*DkimHeader, error) {
 }
 
 // parseDkHeader parse raw dkim header
-func parseDkHeader(header string) (dkh *DkimHeader, err error) {
-	dkh = new(DkimHeader)
+func parseDkHeader(header string) (dkh *dkimHeader, err error) {
+	dkh = new(dkimHeader)
 
 	keyVal := strings.SplitN(header, ":", 2)
 
@@ -434,7 +434,7 @@ func parseDkHeader(header string) (dkh *DkimHeader, err error) {
 
 // GetHeaderBase return base header for signers
 // Todo: some refactoring needed...
-func (d *DkimHeader) GetHeaderBaseForSigning(bodyHash string) string {
+func (d *dkimHeader) getHeaderBaseForSigning(bodyHash string) string {
 	h := "DKIM-Signature: v=" + d.Version + "; a=" + d.Algorithm + "; q=" + strings.Join(d.QueryMethods, ":") + "; c=" + d.MessageCanonicalization + ";" + CRLF + TAB
 	subh := "s=" + d.Selector + ";"
 	if len(subh)+len(d.Domain)+4 > MaxHeaderLineLength {

@@ -161,8 +161,8 @@ func Sign(email *[]byte, options sigOptions) error {
 	}
 
 	// Get dkim header base
-	dkimHeader := NewDkimHeaderBySigOptions(options)
-	dHeader := dkimHeader.GetHeaderBaseForSigning(bodyHash)
+	dkimHeader := newDkimHeaderBySigOptions(options)
+	dHeader := dkimHeader.getHeaderBaseForSigning(bodyHash)
 
 	canonicalizations := strings.Split(options.Canonicalization, "/")
 	dHeaderCanonicalized, err := canonicalizeHeader(dHeader, canonicalizations[0])
@@ -198,7 +198,7 @@ func Sign(email *[]byte, options sigOptions) error {
 // error: if an error occurs during verification
 func Verify(email *[]byte) (verifyOutput, error) {
 	// parse email
-	dkimHeader, err := NewFromEmail(email)
+	dkimHeader, err := newDkimHeaderFromEmail(email)
 	if err != nil {
 		if err == ErrDkimHeaderNotFound {
 			return NOTSIGNED, ErrDkimHeaderNotFound
