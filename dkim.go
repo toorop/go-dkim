@@ -1,3 +1,4 @@
+// Package dkim provides tools for signing and verify a email according to RFC 6376
 package dkim
 
 import (
