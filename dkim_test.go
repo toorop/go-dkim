@@ -151,7 +151,7 @@ func Test_NewSigOptions(t *testing.T) {
 	assert.Equal(t, "simple/simple", options.Canonicalization)
 }
 
-/*func Test_SignConfig(t *testing.T) {
+func Test_SignConfig(t *testing.T) {
 	email := []byte(emailBase)
 	emailToTest := append([]byte(nil), email...)
 	options := NewSigOptions()
@@ -159,7 +159,7 @@ func Test_NewSigOptions(t *testing.T) {
 	assert.NotNil(t, err)
 	// && err No private key
 	assert.EqualError(t, err, ErrSignPrivateKeyRequired.Error())
-	options.PrivateKey = privKey
+	options.PrivateKey = []byte(privKey)
 	emailToTest = append([]byte(nil), email...)
 	err = Sign(&emailToTest, options)
 
@@ -217,7 +217,7 @@ func Test_canonicalize(t *testing.T) {
 	options.Headers = []string{"from", "date", "mime-version", "received", "received", "In-Reply-To"}
 	// simple/simple
 	options.Canonicalization = "simple/simple"
-	header, body, err := canonicalize(&emailToTest, options)
+	header, body, err := canonicalize(&emailToTest, options.Canonicalization, options.Headers)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(headerSimple), header)
 	assert.Equal(t, []byte(bodySimple), body)
@@ -225,18 +225,18 @@ func Test_canonicalize(t *testing.T) {
 	// relaxed/relaxed
 	emailToTest = append([]byte(nil), email...)
 	options.Canonicalization = "relaxed/relaxed"
-	header, body, err = canonicalize(&emailToTest, options)
+	header, body, err = canonicalize(&emailToTest, options.Canonicalization, options.Headers)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(headerRelaxed), header)
 	assert.Equal(t, []byte(bodyRelaxed), body)
 
 }
-*/
+
 func Test_Sign(t *testing.T) {
 	email := []byte(emailBase)
 	emailRelaxed := append([]byte(nil), email...)
 	options := NewSigOptions()
-	options.PrivateKey = privKey
+	options.PrivateKey = []byte(privKey)
 	options.Domain = domain
 	options.Selector = selector
 	//options.SignatureExpireIn = 3600
@@ -252,8 +252,6 @@ func Test_Sign(t *testing.T) {
 	emailSimple := append([]byte(nil), email...)
 	err = Sign(&emailSimple, options)
 	assert.Equal(t, []byte(signedSimpleSimple), emailSimple)
-	//fmt.Println(signedSimpleSimple)
-	//fmt.Println(string(emailSimple))
 
 }
 

@@ -1,7 +1,47 @@
 # go-dkim
-DKIM package for golang
+DKIM package for Golang
 
-## RFCs
-[5585](http://dkim.org/specs/rfc5585.html)
-[5617](http://www.rfc-editor.org/rfc/rfc5617.txt)
-[6376](http://tools.ietf.org/html/rfc6376)
+## Getting started
+
+### Install
+```
+ 	go get https://github.com/toorop/go-dkim
+```
+### Sign email
+
+```go
+import (
+	dkim "github.com/toorop/go-dkim"
+)
+
+func main(){
+	// email is the email to sign (byte slice)
+	// privateKey the private key (pem encoded, byte slice )	
+	options := dkim.NewSigOptions()
+	options.PrivateKey = privateKey
+	options.Domain = "mydomain.tld"
+	options.Selector = "myselector"
+	options.SignatureExpireIn = 3600
+	options.BodyLength = 50
+	options.Headers = []string{"from", "date", "mime-version", "received", "received"}
+	options.AddSignatureTimestamp = true
+	options.Canonicalization = "relaxed/relaxed"
+	err := dkim.Sign(&email, options)
+	// handle err..
+
+	// And... that's it, 'email' is now signed ! Amazing© !!!
+}
+```
+
+### Verify
+```go
+import (
+	dkim "github.com/toorop/go-dkim"
+)
+
+func main(){
+	// email is the email to verify (byte slice)
+	status, err := Verify(&email)
+	// handle status, err
+}
+```

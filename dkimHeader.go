@@ -2,7 +2,6 @@ package dkim
 
 import (
 	"bytes"
-	//"errors"
 	"fmt"
 	"net/mail"
 	"net/textproto"

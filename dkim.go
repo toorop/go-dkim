@@ -43,7 +43,7 @@ type sigOptions struct {
 	Version uint
 
 	// Private key used for signing (required)
-	PrivateKey string
+	PrivateKey []byte
 
 	// Domain (required)
 	Domain string
@@ -101,10 +101,10 @@ func Sign(email *[]byte, options sigOptions) error {
 	var privateKey *rsa.PrivateKey
 
 	// PrivateKey
-	if options.PrivateKey == "" {
+	if len(options.PrivateKey) == 0 {
 		return ErrSignPrivateKeyRequired
 	}
-	d, _ := pem.Decode([]byte(options.PrivateKey))
+	d, _ := pem.Decode(options.PrivateKey)
 	key, err := x509.ParsePKCS1PrivateKey(d.Bytes)
 	if err != nil {
 		return ErrCandNotParsePrivateKey
