@@ -98,6 +98,13 @@ var bodyRelaxed = "Hello world" + CRLF +
 	"Toorop" + CRLF
 
 var signedRelaxedRelaxed = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;" + CRLF +
+	" s=test; d=tmail.io; h=from:date:mime-version:received:received;" + CRLF +
+	" bh=4pCY+Pp2c/Wr8fDfBDWKpx3DDsr0CJfSP9H1KYxm5bA=;" + CRLF +
+	" b=o0eE20jd8jYqkyxP5rqbfcoUABWZyfrL+l3e1lC0Z+b1Azyrdv+UMmx8L5F57Rhya1SNG2" + CRLF +
+	" 9FnMUTwq+u1PmOmB7NwfTq5UCS9UR8wrNffI1mLUsBPFtv+jZtnHzdmR9aCo2HPfBBALC8" + CRLF +
+	" jEhQcvm/RaP0aiYJtisLJ86S3k0P1WU=" + CRLF + emailBase
+
+var signedRelaxedRelaxedLength = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;" + CRLF +
 	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
 	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
 	" b=byhiFWd0lAM1sqD1tl8S1DZtKNqgiEZp8jrGds6RRydnZkdX9rCPeL0Q5MYWBQ/JmQrml5" + CRLF +
@@ -105,6 +112,13 @@ var signedRelaxedRelaxed = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=rela
 	" h1djZu2jaTuxGeJzlFVtw3Arf2B93cc=" + CRLF + emailBase
 
 var signedSimpleSimple = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
+	" s=test; d=tmail.io; h=from:date:mime-version:received:received;" + CRLF +
+	" bh=ZrMyJ01ZlWHPSzskR7A+4CeBDAd0m8CPny4m15ablao=;" + CRLF +
+	" b=nzkqVMlEBL+6m/1AtlFzGV2tHjvfNwFmz9kUDNqphBNSvguv/8KAdqsVheBudJBDHNPrjr" + CRLF +
+	" +N57+atXBQX/jng2WAlI5wpQb1TlxLfm8b7SyS1Z7WwSOI0MqaLMhIss4QEVsevaTF1d/1" + CRLF +
+	" WcFzOPxn66nnn+CRKaz553tjIn1GeFQ=" + CRLF + emailBase
+
+var signedSimpleSimpleLength = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
 	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
 	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
 	" b=SoEhlu1Emm2ASqo8jMhz6FIf2nNHt3ouY4Av/pFFEkQ048RqUFP437ap7RbtL2wh0N3Kkm" + CRLF +
@@ -240,18 +254,31 @@ func Test_Sign(t *testing.T) {
 	options.Domain = domain
 	options.Selector = selector
 	//options.SignatureExpireIn = 3600
-	options.BodyLength = 5
 	options.Headers = []string{"from", "date", "mime-version", "received", "received"}
 	options.AddSignatureTimestamp = false
+
 	options.Canonicalization = "relaxed/relaxed"
 	err := Sign(&emailRelaxed, options)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(signedRelaxedRelaxed), emailRelaxed)
 
+	options.BodyLength = 5
+	emailRelaxed = append([]byte(nil), email...)
+	err = Sign(&emailRelaxed, options)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(signedRelaxedRelaxedLength), emailRelaxed)
+
+	options.BodyLength = 0
 	options.Canonicalization = "simple/simple"
 	emailSimple := append([]byte(nil), email...)
 	err = Sign(&emailSimple, options)
 	assert.Equal(t, []byte(signedSimpleSimple), emailSimple)
+
+	options.BodyLength = 5
+	options.Canonicalization = "simple/simple"
+	emailSimple = append([]byte(nil), email...)
+	err = Sign(&emailSimple, options)
+	assert.Equal(t, []byte(signedSimpleSimpleLength), emailSimple)
 
 }
 
@@ -282,13 +309,13 @@ func Test_Verify(t *testing.T) {
 	assert.Equal(t, ErrSignBadAlgo, err)
 
 	// relaxed
-	email = []byte(signedRelaxedRelaxed)
+	email = []byte(signedRelaxedRelaxedLength)
 	status, err = Verify(&email)
 	assert.NoError(t, err)
 	assert.Equal(t, SUCCESS, status)
 
 	// simple
-	email = []byte(signedSimpleSimple)
+	email = []byte(signedSimpleSimpleLength)
 	status, err = Verify(&email)
 	assert.NoError(t, err)
 	assert.Equal(t, SUCCESS, status)
