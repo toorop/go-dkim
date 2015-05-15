@@ -194,8 +194,8 @@ func Sign(email *[]byte, options SigOptions) error {
 }
 
 // verify verifies an email an return
-// state: SUCCESS or PERMFAIL or TEMPFAIL or NOTSIGNED
-// msg: a complementary message (if needed)
+// state: SUCCESS or PERMFAIL or TEMPFAIL, TESTINGSUCCESS, TESTINGPERMFAIL
+// TESTINGTEMPFAIL or NOTSIGNED
 // error: if an error occurs during verification
 func Verify(email *[]byte) (verifyOutput, error) {
 	// parse email
