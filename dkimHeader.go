@@ -197,7 +197,7 @@ type dkimHeader struct {
 }
 
 // NewDkimHeaderBySigOptions return a new DkimHeader initioalized with sigOptions value
-func newDkimHeaderBySigOptions(options sigOptions) *dkimHeader {
+func newDkimHeaderBySigOptions(options SigOptions) *dkimHeader {
 	h := new(dkimHeader)
 	h.Version = "1"
 	h.Algorithm = options.Algo

@@ -38,7 +38,7 @@ const (
 )
 
 // sigOptions represents signing options
-type sigOptions struct {
+type SigOptions struct {
 
 	// DKIM version (default 1)
 	Version uint
@@ -84,8 +84,8 @@ type sigOptions struct {
 }
 
 // NewSigOption returns new sigoption with some defaults value
-func NewSigOptions() sigOptions {
-	return sigOptions{
+func NewSigOptions() SigOptions {
+	return SigOptions{
 		Version:               1,
 		Canonicalization:      "simple/simple",
 		Algo:                  "rsa-sha256",
@@ -98,7 +98,7 @@ func NewSigOptions() sigOptions {
 }
 
 // Sign signs an email
-func Sign(email *[]byte, options sigOptions) error {
+func Sign(email *[]byte, options SigOptions) error {
 	var privateKey *rsa.PrivateKey
 
 	// PrivateKey
