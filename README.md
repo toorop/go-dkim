@@ -1,7 +1,7 @@
 # go-dkim
 DKIM package for Golang
 
-[![GoDoc](https://godoc.org/github.com/Toorop/go-dkim?status.svg)](https://godoc.org/github.com/Toorop/go-dkim)
+[![GoDoc](https://godoc.org/github.com/toorop/go-dkim?status.svg)](https://godoc.org/github.com/toorop/go-dkim)
 
 ## Getting started
 
