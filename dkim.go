@@ -238,11 +238,13 @@ func Verify(email *[]byte) (verifyOutput, error) {
 
 	}
 
+	//println("|" + string(body) + "|")
 	// get body hash
 	bodyHash, err := getBodyHash(&body, sigHash[1], dkimHeader.BodyLength)
 	if err != nil {
 		return getVerifyOutput(PERMFAIL, err, pubKey.FlagTesting)
 	}
+	//println(bodyHash)
 	if bodyHash != dkimHeader.BodyHash {
 		return getVerifyOutput(PERMFAIL, ErrVerifyBodyHash, pubKey.FlagTesting)
 	}
@@ -350,12 +352,12 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		rawBody = rxReduceWS.ReplaceAll(rawBody, []byte(" "))
 		for _, line := range bytes.SplitAfter(rawBody, []byte{10}) {
 			line = bytes.TrimRight(line, " \r\n")
-
-			if len(line) != 0 {
-				body = append(body, line...)
-				body = append(body, []byte{13, 10}...)
-			}
+			body = append(body, line...)
+			body = append(body, []byte{13, 10}...)
 		}
+		body = bytes.TrimRight(body, "\r\n")
+		body = append(body, []byte{13, 10}...)
+
 	}
 	return
 }

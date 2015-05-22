@@ -159,6 +159,41 @@ var signedDouble = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simpl
 	" pIghLwl/EshDBmNy65O6qO8pSSGgZmM3T7SRLMloex8bnrBJ4KSYcHV46639gVEWcBOKW0" + CRLF +
 	" h1djZu2jaTuxGeJzlFVtw3Arf2B93cc=" + CRLF + emailBase
 
+var fromGmail = "Return-Path: toorop@gmail.com" + CRLF +
+	"Delivered-To: toorop@tmail.io" + CRLF +
+	"Received: tmail deliverd local d9ae3ac7c238a50a6e007d207337752eb04038ff; 21 May 2015 19:47:54 +0200" + CRLF +
+	"X-Env-From: toorop@gmail.com" + CRLF +
+	"Received: from 209.85.217.176 (mail-lb0-f176.google.com.) (mail-lb0-f176.google.com)" + CRLF +
+	"	  by 5.196.15.145 (mail.tmail.io.) with ESMTPS; 21 May 2015 19:47:54 +0200; tmail 0.0.8" + CRLF +
+	"	; 8008e7eae6f168de88db072ead2b34d0f9194cc5" + CRLF +
+	"Authentication-Results: dkim=permfail body hash did not verify" + CRLF +
+	"Received: by lbbqq2 with SMTP id qq2so23551469lbb.3" + CRLF +
+	"        for <toorop@tmail.io>; Thu, 21 May 2015 10:43:42 -0700 (PDT)" + CRLF +
+	"DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;" + CRLF +
+	"        d=gmail.com; s=20120113;" + CRLF +
+	"        h=mime-version:date:message-id:subject:from:to:content-type;" + CRLF +
+	"        bh=pwO8HiXlNND4gOHL7bTlAtJFqYruIH1x8q3dAqEw138=;" + CRLF +
+	"        b=lh5rCv0Y2uh23DLUv+YsPZEmJMkhxlVRG+aeCmtJ5BpXTbSHldmNv1vbSegCx0LY9K" + CRLF +
+	"         l0AEGrpce6YgBk5qRphffEOhANKEkrLesMUyI3yc9JG2J6R19mJ/NyDkT5USZZuI8DOp" + CRLF +
+	"         GkRQSIPU4lrj3U27pr6+8I2lANJfINkqbkbBb69068/aPYl2DUMP5SPCFNwB01LHWKqI" + CRLF +
+	"         srRDhqRYnAql+PZJVbzrue2HwBflr4ycDzhfZ+Q5BxQZt+TJtzkCUHTGtx5z9JctR93E" + CRLF +
+	"         K5hUpKBN6w6GEbj1HDiMsYZOICx3XNDkny8HhFmU0nPjwbHN2C8HslOGZtDPeZWJypSG" + CRLF +
+	"         Wuig==" + CRLF +
+	"MIME-Version: 1.0" + CRLF +
+	"X-Received: by 10.152.206.103 with SMTP id ln7mr3235525lac.40.1432230222503;" + CRLF +
+	" Thu, 21 May 2015 10:43:42 -0700 (PDT)" + CRLF +
+	"Received: by 10.112.162.129 with HTTP; Thu, 21 May 2015 10:43:42 -0700 (PDT)" + CRLF +
+	"Date: Thu, 21 May 2015 19:43:42 +0200" + CRLF +
+	"Message-ID: <CADu37kSVY5ZSq9MGjw3yXfn1eNF-hMHjWJyb87JqS4Z79Zksww@mail.gmail.com>" + CRLF +
+	"Subject: Test smtpdData" + CRLF +
+	"From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@gmail.com>" + CRLF +
+	"To: toorop@tmail.io" + CRLF +
+	"Content-Type: text/plain; charset=UTF-8" + CRLF + CRLF +
+	"Alors ?" + CRLF + CRLF +
+	"-- " + CRLF +
+	"Toorop" + CRLF +
+	"http://www.protecmail.com" + CRLF + CRLF + CRLF
+
 func Test_NewSigOptions(t *testing.T) {
 	options := NewSigOptions()
 	assert.Equal(t, "rsa-sha256", options.Algo)
@@ -319,4 +354,11 @@ func Test_Verify(t *testing.T) {
 	status, err = Verify(&email)
 	assert.NoError(t, err)
 	assert.Equal(t, SUCCESS, status)
+
+	// gmail
+	email = []byte(fromGmail)
+	status, err = Verify(&email)
+	assert.NoError(t, err)
+	assert.Equal(t, SUCCESS, status)
+
 }
