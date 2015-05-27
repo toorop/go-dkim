@@ -315,7 +315,11 @@ func parseDkHeader(header string) (dkh *dkimHeader, err error) {
 	dkh.MessageCanonicalization = "simple/simple"
 	dkh.QueryMethods = []string{"dns/txt"}
 
-	fs := strings.Split(keyVal[1], ";")
+	// unfold && clean
+	val := removeFWS(keyVal[1])
+	val = strings.Replace(val, " ", "", -1)
+
+	fs := strings.Split(val, ";")
 	for _, f := range fs {
 		flagData := strings.SplitN(f, "=", 2)
 		flag := strings.ToLower(strings.TrimSpace(flagData[0]))

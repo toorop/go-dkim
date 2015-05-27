@@ -473,7 +473,6 @@ func verifySignature(toSign []byte, sig64 string, key *rsa.PublicKey, algo strin
 		return ErrVerifyInappropriateHashAlgo
 	}
 
-	//fmt.Printf("|%s|", toSign)
 	h1.Write(toSign)
 	sig, err := base64.StdEncoding.DecodeString(sig64)
 	if err != nil {

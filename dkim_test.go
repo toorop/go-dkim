@@ -360,5 +360,4 @@ func Test_Verify(t *testing.T) {
 	status, err = Verify(&email)
 	assert.NoError(t, err)
 	assert.Equal(t, SUCCESS, status)
-
 }
