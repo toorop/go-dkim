@@ -309,10 +309,8 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 			}
 		}
 		if match != nil {
-			headersToKeepList.PushBack(match.Value.(string))
+			headersToKeepList.PushBack(match.Value.(string) + "\r\n")
 			headersList.Remove(match)
-		} else {
-			headersToKeepList.PushBack(headerToKeep + ":\r\n")
 		}
 	}
 
@@ -520,7 +518,7 @@ func getHeadersList(rawHeader *[]byte) (*list.List, error) {
 		} else {
 			// New header, save current if exists
 			if len(currentHeader) != 0 {
-				headersList.PushBack(string(currentHeader))
+				headersList.PushBack(string(bytes.TrimRight(currentHeader, "\r\n")))
 				currentHeader = []byte{}
 			}
 			currentHeader = append(currentHeader, line...)

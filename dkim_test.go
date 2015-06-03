@@ -75,15 +75,13 @@ var headerSimple = "From: =?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.i
 	"Received: from mail483.ha.ovh.net (b6.ovh.net [213.186.33.56])" + CRLF +
 	" by mo51.mail-out.ovh.net (Postfix) with SMTP id A6E22FF8934" + CRLF +
 	" for <toorop@toorop.fr>; Mon,  4 May 2015 14:00:47 +0200 (CEST)" + CRLF +
-	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
-	"In-Reply-To:" + CRLF
+	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF
 
 var headerRelaxed = "from:=?UTF-8?Q?St=C3=A9phane_Depierrepont?= <toorop@tmail.io>" + CRLF +
 	"date:Fri, 1 May 2015 11:48:37 +0200" + CRLF +
 	"mime-version:1.0" + CRLF +
 	"received:from mail483.ha.ovh.net (b6.ovh.net [213.186.33.56]) by mo51.mail-out.ovh.net (Postfix) with SMTP id A6E22FF8934 for <toorop@toorop.fr>; Mon, 4 May 2015 14:00:47 +0200 (CEST)" + CRLF +
-	"received:(qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +
-	"in-reply-to:" + CRLF
+	"received:(qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF
 
 var bodySimple = "Hello world" + CRLF +
 	"line with trailing space         " + CRLF +
@@ -119,11 +117,11 @@ var signedSimpleSimple = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple
 	" WcFzOPxn66nnn+CRKaz553tjIn1GeFQ=" + CRLF + emailBase
 
 var signedSimpleSimpleLength = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
-	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
+	" s=test; d=tmail.io; l=5; h=from:subject:date:message-id;" + CRLF +
 	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
-	" b=SoEhlu1Emm2ASqo8jMhz6FIf2nNHt3ouY4Av/pFFEkQ048RqUFP437ap7RbtL2wh0N3Kkm" + CRLF +
-	" AKF2TcTLZ++1nalq+djU+/aP4KYQd4RWWFBjkxDzvCH4bvB1M5AGp4Qz9ldmdMQBWOvvSp" + CRLF +
-	" DIpJW4XNA/uqLSswtjCYbJsSg9Ywv1o=" + CRLF + emailBase
+	" b=P4cX4WxnSytfsQ3skg3fYIRljleh2iDJidlr/GPfA4S8pTPNZj4SPhB7CJ6OcbSWwJ6Yer" + CRLF +
+	" rHGEmCSEGHJPQm+P12iujJlQ784i34JsBvMC5YAMIQ0DHTNhJRHEyShg1I0B3tqArogdap" + CRLF +
+	" qwWLUSFEhPTXglZVhcHIvYZA9X38iF4=" + CRLF + emailBase
 
 var signedNoFrom = "DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=simple/simple;" + CRLF +
 	" s=test; d=tmail.io; h=from:date:mime-version:received:received;" + CRLF +
@@ -193,6 +191,16 @@ var fromGmail = "Return-Path: toorop@gmail.com" + CRLF +
 	"-- " + CRLF +
 	"Toorop" + CRLF +
 	"http://www.protecmail.com" + CRLF + CRLF + CRLF
+
+var missingHeaderMail = "Received: tmail deliverd remote 439903a23facd153908f3e17fb487962d01f4b44; 02 Jun 2015 10:00:24 +0000" + CRLF +
+	"X-Env-From: toorop@toorop.fr" + CRLF +
+	"Received: from 192.168.0.2 (no reverse) by 192.168.0.46 (no reverse) whith" + CRLF +
+	"   SMTP; 02 Jun 2015 10:00:23 +0000; tmail 0.0.8;" + CRLF +
+	"   d3c348615ef29692ca8bdacb40d0e147c977579c" + CRLF +
+	"Message-ID: <1433239223.d3c348615ef29692ca8bdacb40d0e147c977579c@toorop.fr>" + CRLF +
+	"Date: Thu, 21 May 2015 19:43:42 +0200" + CRLF +
+	"Subject: test" + CRLF + CRLF +
+	"test"
 
 func Test_NewSigOptions(t *testing.T) {
 	options := NewSigOptions()
@@ -309,6 +317,11 @@ func Test_Sign(t *testing.T) {
 	err = Sign(&emailSimple, options)
 	assert.Equal(t, []byte(signedSimpleSimple), emailSimple)
 
+	options.Headers = []string{"from", "subject", "date", "message-id"}
+	memail := []byte(missingHeaderMail)
+	err = Sign(&memail, options)
+	assert.NoError(t, err)
+
 	options.BodyLength = 5
 	options.Canonicalization = "simple/simple"
 	emailSimple = append([]byte(nil), email...)
@@ -360,4 +373,5 @@ func Test_Verify(t *testing.T) {
 	status, err = Verify(&email)
 	assert.NoError(t, err)
 	assert.Equal(t, SUCCESS, status)
+
 }
