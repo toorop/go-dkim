@@ -7,7 +7,7 @@ DKIM package for Golang
 
 ### Install
 ```
- 	go get https://github.com/toorop/go-dkim
+ 	go get github.com/toorop/go-dkim
 ```
 Warning: you need to use Go 1.4.2-master or 1.4.3 (when it will be available)
 see https://github.com/golang/go/issues/10482 fro more info.
