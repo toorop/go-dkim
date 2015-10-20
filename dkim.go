@@ -106,6 +106,9 @@ func Sign(email *[]byte, options SigOptions) error {
 		return ErrSignPrivateKeyRequired
 	}
 	d, _ := pem.Decode(options.PrivateKey)
+	if d == nil {
+		return ErrCandNotParsePrivateKey
+	}
 	key, err := x509.ParsePKCS1PrivateKey(d.Bytes)
 	if err != nil {
 		return ErrCandNotParsePrivateKey
