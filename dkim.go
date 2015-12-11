@@ -83,7 +83,7 @@ type SigOptions struct {
 	CopiedHeaderFields []string
 }
 
-// NewSigOption returns new sigoption with some defaults value
+// NewSigOptions returns new sigoption with some defaults value
 func NewSigOptions() SigOptions {
 	return SigOptions{
 		Version:               1,
@@ -196,7 +196,7 @@ func Sign(email *[]byte, options SigOptions) error {
 	return nil
 }
 
-// verify verifies an email an return
+// Verify verifies an email an return
 // state: SUCCESS or PERMFAIL or TEMPFAIL, TESTINGSUCCESS, TESTINGPERMFAIL
 // TESTINGTEMPFAIL or NOTSIGNED
 // error: if an error occurs during verification
@@ -206,15 +206,16 @@ func Verify(email *[]byte) (verifyOutput, error) {
 	if err != nil {
 		if err == ErrDkimHeaderNotFound {
 			return NOTSIGNED, ErrDkimHeaderNotFound
-		} else {
-			return PERMFAIL, err
 		}
+		return PERMFAIL, err
 	}
 
 	// we do not set query method because if it's others, validation failed earlier
 	pubKey, verifyOutputOnError, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
 	if err != nil {
-		return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)
+		// fix https://github.com/toorop/go-dkim/issues/1
+		//return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)
+		return verifyOutputOnError, err
 	}
 
 	// Normalize
