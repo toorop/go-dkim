@@ -322,6 +322,11 @@ func parseDkHeader(header string) (dkh *dkimHeader, err error) {
 	fs := strings.Split(val, ";")
 	for _, f := range fs {
 		flagData := strings.SplitN(f, "=", 2)
+		// https://github.com/toorop/go-dkim/issues/2
+		// if flag is not in the form key=value (eg doesn't have "=")
+		if len(flagData) != 2 {
+			return nil, ErrDkimHeaderBadFormat
+		}
 		flag := strings.ToLower(strings.TrimSpace(flagData[0]))
 		data := strings.TrimSpace(flagData[1])
 		switch flag {
