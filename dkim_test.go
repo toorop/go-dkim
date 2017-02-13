@@ -137,6 +137,13 @@ var signedMissingFlag = "DKIM-Signature: v=1; q=dns/txt; c=simple/simple;" + CRL
 	" AKF2TcTLZ++1nalq+djU+/aP4KYQd4RWWFBjkxDzvCH4bvB1M5AGp4Qz9ldmdMQBWOvvSp" + CRLF +
 	" DIpJW4XNA/uqLSswtjCYbJsSg9Ywv1o=" + CRLF + emailBase
 
+var signedBadAFlag = "DKIM-Signature: v=1; a=rsashasha sfds; q=dns/txt; c=simple/simple;" + CRLF +
+	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
+	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
+	" b=SoEhlu1Emm2ASqo8jMhz6FIf2nNHt3ouY4Av/pFFEkQ048RqUFP437ap7RbtL2wh0N3Kkm" + CRLF +
+	" AKF2TcTLZ++1nalq+djU+/aP4KYQd4RWWFBjkxDzvCH4bvB1M5AGp4Qz9ldmdMQBWOvvSp" + CRLF +
+	" DIpJW4XNA/uqLSswtjCYbJsSg9Ywv1o=" + CRLF + emailBase
+
 var signedBadAlgo = "DKIM-Signature: v=1; a=rsa-shasha; q=dns/txt; c=simple/simple;" + CRLF +
 	" s=test; d=tmail.io; l=5; h=from:date:mime-version:received:received;" + CRLF +
 	" bh=GF+NsyJx/iX1Yab8k4suJkMG7DBO2lGAB9F2SCY4GWk=;" + CRLF +
@@ -352,6 +359,12 @@ func Test_Verify(t *testing.T) {
 
 	// missing bad algo
 	email = []byte(signedBadAlgo)
+	status, err = Verify(&email)
+	assert.Equal(t, PERMFAIL, status)
+	assert.Equal(t, ErrSignBadAlgo, err)
+
+	// bad a flag
+	email = []byte(signedBadAFlag)
 	status, err = Verify(&email)
 	assert.Equal(t, PERMFAIL, status)
 	assert.Equal(t, ErrSignBadAlgo, err)
