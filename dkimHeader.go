@@ -301,6 +301,11 @@ func parseDkHeader(header string) (dkh *dkimHeader, err error) {
 		return nil, ErrDkimHeaderBTagNotFound
 	}
 	dkh.RawForSign = header[0 : t+2]
+	p := strings.IndexByte(header[t:], ';')
+	if p != -1 {
+		dkh.RawForSign = dkh.RawForSign + header[t+p:]
+	}
+
 	// Mandatory
 	mandatoryFlags := make(map[string]bool, 7) //(b'v', b'a', b'b', b'bh', b'd', b'h', b's')
 	mandatoryFlags["v"] = false
@@ -321,7 +326,11 @@ func parseDkHeader(header string) (dkh *dkimHeader, err error) {
 
 	fs := strings.Split(val, ";")
 	for _, f := range fs {
+		if f == "" {
+			continue
+		}
 		flagData := strings.SplitN(f, "=", 2)
+
 		// https://github.com/toorop/go-dkim/issues/2
 		// if flag is not in the form key=value (eg doesn't have "=")
 		if len(flagData) != 2 {
