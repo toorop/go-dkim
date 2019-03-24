@@ -534,7 +534,6 @@ func getHeadersList(rawHeader *[]byte) (*list.List, error) {
 
 // getHeadersBody return headers and body
 func getHeadersBody(email *[]byte) ([]byte, []byte, error) {
-
 	// \n -> \r\n
 	substitutedEmail := bytes.Replace(*email, []byte{10}, []byte{13, 10}, -1)
 
