@@ -534,8 +534,11 @@ func getHeadersList(rawHeader *[]byte) (*list.List, error) {
 
 // getHeadersBody return headers and body
 func getHeadersBody(email *[]byte) ([]byte, []byte, error) {
-	// TODO: \n -> \r\n
-	parts := bytes.SplitN(*email, []byte{13, 10, 13, 10}, 2)
+
+	// \n -> \r\n
+	substitutedEmail := bytes.Replace(*email, []byte{10}, []byte{13, 10}, -1)
+
+	parts := bytes.SplitN(substitutedEmail, []byte{13, 10, 13, 10}, 2)
 	if len(parts) != 2 {
 		return []byte{}, []byte{}, ErrBadMailFormat
 	}
