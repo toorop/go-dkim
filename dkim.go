@@ -291,6 +291,9 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 	rxReduceWS := regexp.MustCompile(`[ \t]+`)
 
 	rawHeaders, rawBody, err := getHeadersBody(email)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	canonicalizations := strings.Split(cano, "/")
 
@@ -534,8 +537,13 @@ func getHeadersList(rawHeader *[]byte) (*list.List, error) {
 
 // getHeadersBody return headers and body
 func getHeadersBody(email *[]byte) ([]byte, []byte, error) {
-	// \n -> \r\n
-	substitutedEmail := bytes.Replace(*email, []byte{10}, []byte{13, 10}, -1)
+	substitutedEmail := *email
+
+	// only replace \n with \r\n when \r\n\r\n not exists
+	if bytes.Index(*email, []byte{13, 10, 13, 10}) < 0 {
+		// \n -> \r\n
+		substitutedEmail = bytes.Replace(*email, []byte{10}, []byte{13, 10}, -1)
+	}
 
 	parts := bytes.SplitN(substitutedEmail, []byte{13, 10, 13, 10}, 2)
 	if len(parts) != 2 {
