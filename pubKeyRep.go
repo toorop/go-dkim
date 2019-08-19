@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// pubKeyRep represents a parsed version of public key record
-type pubKeyRep struct {
+// PubKeyRep represents a parsed version of public key record
+type PubKeyRep struct {
 	Version      string
 	HashAlgo     []string
 	KeyType      string
@@ -20,14 +20,16 @@ type pubKeyRep struct {
 	FlagIMustBeD bool // flag i
 }
 
-func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, error) {
+// NewPubKeyRespFromDNS retrieves the TXT record from DNS based on the specified domain and selector
+// and parses it.
+func NewPubKeyRespFromDNS(selector, domain string) (*PubKeyRep, verifyOutput, error) {
 	txt, err := net.LookupTXT(selector + "._domainkey." + domain)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "no such host") {
 			return nil, PERMFAIL, ErrVerifyNoKeyForSignature
-		} else {
-			return nil, TEMPFAIL, ErrVerifyKeyUnavailable
 		}
+
+		return nil, TEMPFAIL, ErrVerifyKeyUnavailable
 	}
 
 	// empty record
@@ -35,7 +37,15 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 		return nil, PERMFAIL, ErrVerifyNoKeyForSignature
 	}
 
-	pkr := new(pubKeyRep)
+	// parsing, we keep the first record
+	// TODO: if there is multiple record
+
+	return NewPubKeyResp(txt[0])
+}
+
+// NewPubKeyResp parses DKIM record (usually from DNS)
+func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
+	pkr := new(PubKeyRep)
 	pkr.Version = "DKIM1"
 	pkr.HashAlgo = []string{"sha1", "sha256"}
 	pkr.KeyType = "rsa"
@@ -43,10 +53,7 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 	pkr.FlagTesting = false
 	pkr.FlagIMustBeD = false
 
-	// parsing, we keep the first record
-	// TODO: if there is multiple record
-
-	p := strings.Split(txt[0], ";")
+	p := strings.Split(dkimRecord, ";")
 	for i, data := range p {
 		keyVal := strings.SplitN(data, "=", 2)
 		val := ""
