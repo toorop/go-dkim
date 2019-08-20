@@ -51,7 +51,6 @@ func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
 	pkr.Version = "DKIM1"
 	pkr.HashAlgo = []string{"sha1", "sha256"}
 	pkr.KeyType = "rsa"
-	pkr.ServiceType = []string{"all"}
 	pkr.FlagTesting = false
 	pkr.FlagIMustBeD = false
 
@@ -111,12 +110,12 @@ func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
 		case "s":
 			t := strings.Split(strings.ToLower(val), ":")
 			for _, tt := range t {
-				if tt == "*" {
-					pkr.ServiceType = []string{"all"}
-					break
-				}
-				if tt == "email" {
-					pkr.ServiceType = []string{"email"}
+				tt = strings.TrimSpace(tt)
+				switch tt {
+				case "*":
+					pkr.ServiceType = append(pkr.ServiceType, "all")
+				case "email":
+					pkr.ServiceType = append(pkr.ServiceType, tt)
 				}
 			}
 		case "t":
@@ -136,6 +135,11 @@ func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
 	// if no pubkey
 	if pkr.PubKey == (rsa.PublicKey{}) {
 		return nil, PERMFAIL, ErrVerifyNoKey
+	}
+
+	// No service type
+	if len(pkr.ServiceType) == 0 {
+		pkr.ServiceType = []string{"all"}
 	}
 
 	return pkr, SUCCESS, nil
