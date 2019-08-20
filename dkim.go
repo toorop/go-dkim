@@ -200,7 +200,7 @@ func Sign(email *[]byte, options SigOptions) error {
 // state: SUCCESS or PERMFAIL or TEMPFAIL, TESTINGSUCCESS, TESTINGPERMFAIL
 // TESTINGTEMPFAIL or NOTSIGNED
 // error: if an error occurs during verification
-func Verify(email *[]byte) (verifyOutput, error) {
+func Verify(email *[]byte, opts ...DNSOpt) (verifyOutput, error) {
 	// parse email
 	dkimHeader, err := newDkimHeaderFromEmail(email)
 	if err != nil {
@@ -211,7 +211,7 @@ func Verify(email *[]byte) (verifyOutput, error) {
 	}
 
 	// we do not set query method because if it's others, validation failed earlier
-	pubKey, verifyOutputOnError, err := NewPubKeyRespFromDNS(dkimHeader.Selector, dkimHeader.Domain)
+	pubKey, verifyOutputOnError, err := NewPubKeyRespFromDNS(dkimHeader.Selector, dkimHeader.Domain, opts...)
 	if err != nil {
 		// fix https://github.com/toorop/go-dkim/issues/1
 		//return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)
