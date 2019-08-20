@@ -4,6 +4,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"io/ioutil"
+	"mime/quotedprintable"
 	"net"
 	"strings"
 )
@@ -88,6 +90,10 @@ func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
 				return nil, PERMFAIL, ErrVerifyBadKeyType
 			}
 		case "n":
+			qp, err := ioutil.ReadAll(quotedprintable.NewReader(strings.NewReader(val)))
+			if err == nil {
+				val = string(qp)
+			}
 			pkr.Note = val
 		case "p":
 			rawkey := val
