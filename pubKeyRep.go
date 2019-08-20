@@ -121,11 +121,11 @@ func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
 		case "t":
 			flags := strings.Split(strings.ToLower(val), ":")
 			for _, flag := range flags {
-				if flag == "y" {
+				flag = strings.TrimSpace(flag)
+				switch flag {
+				case "y":
 					pkr.FlagTesting = true
-					continue
-				}
-				if flag == "s" {
+				case "s":
 					pkr.FlagIMustBeD = true
 				}
 			}
