@@ -211,7 +211,7 @@ func Verify(email *[]byte) (verifyOutput, error) {
 	}
 
 	// we do not set query method because if it's others, validation failed earlier
-	pubKey, verifyOutputOnError, err := newPubKeyFromDnsTxt(dkimHeader.Selector, dkimHeader.Domain)
+	pubKey, verifyOutputOnError, err := NewPubKeyRespFromDNS(dkimHeader.Selector, dkimHeader.Domain)
 	if err != nil {
 		// fix https://github.com/toorop/go-dkim/issues/1
 		//return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)

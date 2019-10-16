@@ -2,9 +2,13 @@ package dkim
 
 import (
 	//"fmt"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -33,6 +37,17 @@ kS5vLkzRI84eiJrm3+IieUqIIicsO+WYxQs+JgVx5XhpPjX4SQjHtwEC2xKkWnEv
 
 	selector = "test"
 )
+
+func privKeyRSA(tb testing.TB) *rsa.PrivateKey {
+	block, rest := pem.Decode([]byte(privKey))
+	require.NotNil(tb, block)
+	require.Empty(tb, rest)
+
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	require.NoError(tb, err)
+
+	return key
+}
 
 var emailBase = "Received: (qmail 28277 invoked from network); 1 May 2015 09:43:37 -0000" + CRLF +
 	"Received: (qmail 21323 invoked from network); 1 May 2015 09:48:39 -0000" + CRLF +

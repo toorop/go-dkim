@@ -4,12 +4,14 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"io/ioutil"
+	"mime/quotedprintable"
 	"net"
 	"strings"
 )
 
-// pubKeyRep represents a parsed version of public key record
-type pubKeyRep struct {
+// PubKeyRep represents a parsed version of public key record
+type PubKeyRep struct {
 	Version      string
 	HashAlgo     []string
 	KeyType      string
@@ -20,14 +22,16 @@ type pubKeyRep struct {
 	FlagIMustBeD bool // flag i
 }
 
-func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, error) {
+// NewPubKeyRespFromDNS retrieves the TXT record from DNS based on the specified domain and selector
+// and parses it.
+func NewPubKeyRespFromDNS(selector, domain string) (*PubKeyRep, verifyOutput, error) {
 	txt, err := net.LookupTXT(selector + "._domainkey." + domain)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "no such host") {
 			return nil, PERMFAIL, ErrVerifyNoKeyForSignature
-		} else {
-			return nil, TEMPFAIL, ErrVerifyKeyUnavailable
 		}
+
+		return nil, TEMPFAIL, ErrVerifyKeyUnavailable
 	}
 
 	// empty record
@@ -35,18 +39,22 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 		return nil, PERMFAIL, ErrVerifyNoKeyForSignature
 	}
 
-	pkr := new(pubKeyRep)
-	pkr.Version = "DKIM1"
-	pkr.HashAlgo = []string{"sha1", "sha256"}
-	pkr.KeyType = "rsa"
-	pkr.ServiceType = []string{"all"}
-	pkr.FlagTesting = false
-	pkr.FlagIMustBeD = false
-
 	// parsing, we keep the first record
 	// TODO: if there is multiple record
 
-	p := strings.Split(txt[0], ";")
+	return NewPubKeyResp(txt[0])
+}
+
+// NewPubKeyResp parses DKIM record (usually from DNS)
+func NewPubKeyResp(dkimRecord string) (*PubKeyRep, verifyOutput, error) {
+	pkr := new(PubKeyRep)
+	pkr.Version = "DKIM1"
+	pkr.HashAlgo = []string{"sha1", "sha256"}
+	pkr.KeyType = "rsa"
+	pkr.FlagTesting = false
+	pkr.FlagIMustBeD = false
+
+	p := strings.Split(dkimRecord, ";")
 	for i, data := range p {
 		keyVal := strings.SplitN(data, "=", 2)
 		val := ""
@@ -81,6 +89,10 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 				return nil, PERMFAIL, ErrVerifyBadKeyType
 			}
 		case "n":
+			qp, err := ioutil.ReadAll(quotedprintable.NewReader(strings.NewReader(val)))
+			if err == nil {
+				val = string(qp)
+			}
 			pkr.Note = val
 		case "p":
 			rawkey := val
@@ -98,22 +110,22 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 		case "s":
 			t := strings.Split(strings.ToLower(val), ":")
 			for _, tt := range t {
-				if tt == "*" {
-					pkr.ServiceType = []string{"all"}
-					break
-				}
-				if tt == "email" {
-					pkr.ServiceType = []string{"email"}
+				tt = strings.TrimSpace(tt)
+				switch tt {
+				case "*":
+					pkr.ServiceType = append(pkr.ServiceType, "all")
+				case "email":
+					pkr.ServiceType = append(pkr.ServiceType, tt)
 				}
 			}
 		case "t":
 			flags := strings.Split(strings.ToLower(val), ":")
 			for _, flag := range flags {
-				if flag == "y" {
+				flag = strings.TrimSpace(flag)
+				switch flag {
+				case "y":
 					pkr.FlagTesting = true
-					continue
-				}
-				if flag == "s" {
+				case "s":
 					pkr.FlagIMustBeD = true
 				}
 			}
@@ -123,6 +135,11 @@ func newPubKeyFromDnsTxt(selector, domain string) (*pubKeyRep, verifyOutput, err
 	// if no pubkey
 	if pkr.PubKey == (rsa.PublicKey{}) {
 		return nil, PERMFAIL, ErrVerifyNoKey
+	}
+
+	// No service type
+	if len(pkr.ServiceType) == 0 {
+		pkr.ServiceType = []string{"all"}
 	}
 
 	return pkr, SUCCESS, nil
