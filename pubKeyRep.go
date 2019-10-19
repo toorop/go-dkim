@@ -22,10 +22,45 @@ type PubKeyRep struct {
 	FlagIMustBeD bool // flag i
 }
 
+// DNSOptions holds settings for looking up DNS records
+type DNSOptions struct {
+	netLookupTXT func(name string) ([]string, error)
+}
+
+// DNSOpt represents an optional setting for looking up DNS records
+type DNSOpt interface {
+	apply(*DNSOptions)
+}
+
+type dnsOpt func(*DNSOptions)
+
+func (opt dnsOpt) apply(dnsOpts *DNSOptions) {
+	opt(dnsOpts)
+}
+
+// DNSOptLookupTXT sets the function to use to lookup TXT records.
+//
+// This should probably only be used in tests.
+func DNSOptLookupTXT(netLookupTXT func(name string) ([]string, error)) DNSOpt {
+	return dnsOpt(func(opts *DNSOptions) {
+		opts.netLookupTXT = netLookupTXT
+	})
+}
+
 // NewPubKeyRespFromDNS retrieves the TXT record from DNS based on the specified domain and selector
 // and parses it.
-func NewPubKeyRespFromDNS(selector, domain string) (*PubKeyRep, verifyOutput, error) {
-	txt, err := net.LookupTXT(selector + "._domainkey." + domain)
+func NewPubKeyRespFromDNS(selector, domain string, opts ...DNSOpt) (*PubKeyRep, verifyOutput, error) {
+	dnsOpts := DNSOptions{}
+
+	for _, opt := range opts {
+		opt.apply(&dnsOpts)
+	}
+
+	if dnsOpts.netLookupTXT == nil {
+		dnsOpts.netLookupTXT = net.LookupTXT
+	}
+
+	txt, err := dnsOpts.netLookupTXT(selector + "._domainkey." + domain)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "no such host") {
 			return nil, PERMFAIL, ErrVerifyNoKeyForSignature
