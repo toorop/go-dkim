@@ -228,13 +228,13 @@ func GetHeader(email *[]byte) (*DKIMHeader, error) {
 	}
 
 	// DKIM header ?
-	if len(m.Headers[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")]) == 0 {
+	if len(m.Header[textproto.CanonicalMIMEHeaderKey("DKIM-Signature")]) == 0 {
 		return nil, ErrDkimHeaderNotFound
 	}
 
 	// Get mail from domain
 	mailFromDomain := ""
-	mailfrom, err := mail.ParseAddress(m.Headers.Get(textproto.CanonicalMIMEHeaderKey("From")))
+	mailfrom, err := mail.ParseAddress(m.Header.Get(textproto.CanonicalMIMEHeaderKey("From")))
 	if err != nil {
 		if err.Error() != "mail: no address" {
 			return nil, err
