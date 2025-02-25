@@ -39,7 +39,6 @@ const (
 
 // sigOptions represents signing options
 type SigOptions struct {
-
 	// DKIM version (default 1)
 	Version uint
 
@@ -221,7 +220,7 @@ func Verify(email *[]byte, opts ...DNSOpt) (verifyOutput, error) {
 	pubKey, verifyOutputOnError, err := NewPubKeyRespFromDNS(dkimHeader.Selector, dkimHeader.Domain, opts...)
 	if err != nil {
 		// fix https://github.com/toorop/go-dkim/issues/1
-		//return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)
+		// return getVerifyOutput(verifyOutputOnError, err, pubKey.FlagTesting)
 		return verifyOutputOnError, err
 	}
 
@@ -244,18 +243,17 @@ func Verify(email *[]byte, opts ...DNSOpt) (verifyOutput, error) {
 	}
 
 	// expired ?
-	if !dkimHeader.SignatureExpiration.IsZero() && dkimHeader.SignatureExpiration.Second() < time.Now().Second() {
+	if !dkimHeader.SignatureExpiration.IsZero() && dkimHeader.SignatureExpiration.Before(time.Now()) {
 		return getVerifyOutput(PERMFAIL, ErrVerifySignatureHasExpired, pubKey.FlagTesting)
-
 	}
 
-	//println("|" + string(body) + "|")
+	// println("|" + string(body) + "|")
 	// get body hash
 	bodyHash, err := getBodyHash(&body, sigHash[1], dkimHeader.BodyLength)
 	if err != nil {
 		return getVerifyOutput(PERMFAIL, err, pubKey.FlagTesting)
 	}
-	//println(bodyHash)
+	// println(bodyHash)
 	if bodyHash != dkimHeader.BodyHash {
 		return getVerifyOutput(PERMFAIL, ErrVerifyBodyHash, pubKey.FlagTesting)
 	}
@@ -316,7 +314,7 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		match = nil
 		headerToKeepToLower := strings.ToLower(headerToKeep)
 		for e := headersList.Front(); e != nil; e = e.Next() {
-			//fmt.Printf("|%s|\n", e.Value.(string))
+			// fmt.Printf("|%s|\n", e.Value.(string))
 			t := strings.Split(e.Value.(string), ":")
 			if strings.ToLower(t[0]) == headerToKeepToLower {
 				match = e
@@ -328,7 +326,7 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 		}
 	}
 
-	//if canonicalizations[0] == "simple" {
+	// if canonicalizations[0] == "simple" {
 	for e := headersToKeepList.Front(); e != nil; e = e.Next() {
 		cHeader, err := canonicalizeHeader(e.Value.(string), canonicalizations[0])
 		if err != nil {
@@ -376,7 +374,7 @@ func canonicalize(email *[]byte, cano string, h []string) (headers, body []byte,
 
 // canonicalizeHeader returns canonicalized version of header
 func canonicalizeHeader(header string, algo string) (string, error) {
-	//rxReduceWS := regexp.MustCompile(`[ \t]+`)
+	// rxReduceWS := regexp.MustCompile(`[ \t]+`)
 	if algo == "simple" {
 		// The "simple" header canonicalization algorithm does not change header
 		// fields in any way.  Header fields MUST be presented to the signing or
@@ -414,8 +412,8 @@ func canonicalizeHeader(header string, algo string) (string, error) {
 		k := strings.ToLower(kv[0])
 		k = strings.TrimSpace(k)
 		v := removeFWS(kv[1])
-		//v = rxReduceWS.ReplaceAllString(v, " ")
-		//v = strings.TrimSpace(v)
+		// v = rxReduceWS.ReplaceAllString(v, " ")
+		// v = strings.TrimSpace(v)
 		return k + ":" + v + CRLF, nil
 	}
 	return header, ErrSignBadCanonicalization

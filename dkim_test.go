@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -287,7 +288,6 @@ func Test_SignConfig(t *testing.T) {
 	emailToTest = append([]byte(nil), email...)
 	err = Sign(&emailToTest, options)
 	assert.NoError(t, err)
-
 }
 
 func Test_canonicalize(t *testing.T) {
@@ -309,7 +309,6 @@ func Test_canonicalize(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte(headerRelaxed), header)
 	assert.Equal(t, []byte(bodyRelaxed), body)
-
 }
 
 func Test_Sign(t *testing.T) {
@@ -319,7 +318,7 @@ func Test_Sign(t *testing.T) {
 	options.PrivateKey = []byte(privKey)
 	options.Domain = domain
 	options.Selector = selector
-	//options.SignatureExpireIn = 3600
+	// options.SignatureExpireIn = 3600
 	options.Headers = []string{"from", "date", "mime-version", "received", "received"}
 	options.AddSignatureTimestamp = false
 
@@ -350,7 +349,6 @@ func Test_Sign(t *testing.T) {
 	emailSimple = append([]byte(nil), email...)
 	err = Sign(&emailSimple, options)
 	assert.Equal(t, []byte(signedSimpleSimpleLength), emailSimple)
-
 }
 
 func Test_Verify(t *testing.T) {
@@ -418,5 +416,36 @@ func Test_Verify(t *testing.T) {
 	// status, err = Verify(&email, resolveTXT)
 	// assert.NoError(t, err)
 	// assert.Equal(t, SUCCESS, status)
+}
 
+func Test_SignatureExpiration(t *testing.T) {
+	email := []byte(emailBase)
+	options := NewSigOptions()
+	options.PrivateKey = []byte(privKey)
+	options.Domain = domain
+	options.Selector = selector
+	options.Headers = []string{"from", "date", "mime-version", "received", "received"}
+	options.AddSignatureTimestamp = true
+	options.SignatureExpireIn = 1 // 1 second for testing
+
+	// Sign the email
+	err := Sign(&email, options)
+	assert.NoError(t, err)
+
+	// Wait for the signature to expire
+	time.Sleep(2 * time.Second)
+
+	// Verify the email
+	resolveTXT := DNSOptLookupTXT(func(name string) ([]string, error) {
+		switch name {
+		case selector + "._domainkey." + domain:
+			return []string{"v=DKIM1; t=y; p=" + pubKey}, nil
+		default:
+			return net.LookupTXT(name)
+		}
+	})
+
+	status, err := Verify(&email, resolveTXT)
+	assert.Equal(t, TESTINGPERMFAIL, status)
+	assert.Equal(t, ErrVerifySignatureHasExpired, err)
 }
